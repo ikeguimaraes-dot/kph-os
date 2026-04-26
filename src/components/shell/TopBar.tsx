@@ -2,6 +2,14 @@
 
 import { usePathname } from "next/navigation";
 import { Search, Bell } from "lucide-react";
+import { useAuth } from "@/lib/auth/context";
+
+function firstName(email: string | null | undefined): string {
+  if (!email) return "operador";
+  const local = email.split("@")[0] ?? "";
+  const first = local.split(".")[0] ?? local;
+  return first ? first.charAt(0).toUpperCase() + first.slice(1) : "operador";
+}
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -30,7 +38,9 @@ const PATH_LABELS: Record<string, string> = {
 
 export function TopBar() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const title = PATH_LABELS[pathname] ?? "KPH OS";
+  const name = firstName(user?.email);
 
   return (
     <header style={{
@@ -42,7 +52,7 @@ export function TopBar() {
     }}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-          {greeting()}, Ike · <span style={{ color: "var(--text-3)" }}>{title}</span>
+          {greeting()}, {name} · <span style={{ color: "var(--text-3)" }}>{title}</span>
         </div>
         <div style={{ fontSize: 11, color: "var(--text-3)" }}>
           {fmtDate()}
