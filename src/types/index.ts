@@ -1,28 +1,14 @@
-// Tipos compartilhados do KPH OS. Expandem ao longo das fases.
+// Re-exporta os tipos do schema Supabase. A source of truth é database.ts.
 
-export type Group = {
-  id: string;
-  nome: string;
-};
-
-export type Brand = {
-  id: string;
-  group_id: string;
-  nome: string;
-};
-
-export type Unit = {
-  id: string;
-  brand_id: string;
-  nome: string;
-};
-
-export type Role =
-  | "founder"
-  | "cfo"
-  | "gm"
-  | "pessoas"
-  | "chef"
-  | "comprador"
-  | "colaborador"
-  | "socio_readonly";
+export type {
+  Database,
+  Tables,
+  Group,
+  Brand,
+  Unit,
+  RoleRow,
+  UserRole,
+  AuditLogEntry,
+  RoleName,
+  Json,
+} from "./database";
