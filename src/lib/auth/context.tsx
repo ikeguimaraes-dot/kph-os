@@ -16,6 +16,14 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORED_UNIT_KEY = "kph_unit_id";
+// Cookie espelha o localStorage pra Server Components conseguirem ler.
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 ano
+
+function persistUnit(id: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORED_UNIT_KEY, id);
+  document.cookie = `${STORED_UNIT_KEY}=${encodeURIComponent(id)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
 
 /**
  * Provider montado no layout do dashboard. Recebe o user (já validado pelo
@@ -40,14 +48,15 @@ export function AuthProvider({
     const stored = window.localStorage.getItem(STORED_UNIT_KEY);
     const valid = stored && units.some((u) => u.id === stored) ? stored : null;
     const fallback = units[0]?.id ?? null;
-    setUnitIdState(valid ?? fallback);
+    const next = valid ?? fallback;
+    setUnitIdState(next);
+    // Garante que o cookie reflete a unit "real" — útil no primeiro load.
+    if (next) persistUnit(next);
   }, [units]);
 
   const setUnitId = (id: string) => {
     setUnitIdState(id);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORED_UNIT_KEY, id);
-    }
+    persistUnit(id);
   };
 
   const signOut = async () => {
