@@ -42,11 +42,15 @@ export function PontoApp({
   employeeName,
   employeeFuncao,
   initialPunches,
+  initialAccessToken,
+  initialRefreshToken,
 }: {
   employeeId: string;
   employeeName: string;
   employeeFuncao: string;
   initialPunches: TimeClockPunch[];
+  initialAccessToken: string | null;
+  initialRefreshToken: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [punches, setPunches] = useState<TimeClockPunch[]>(initialPunches);
@@ -63,6 +67,20 @@ export function PontoApp({
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Seeda a session no browser client. Crítico pra iOS PWA standalone:
+  // o cookie SSR pode não estar acessível ao document.cookie do PWA, então
+  // o server passa os tokens explicitamente e nós salvamos no storage local
+  // (localStorage do @supabase/ssr) via setSession().
+  useEffect(() => {
+    if (!initialAccessToken || !initialRefreshToken) return;
+    const c = getBrowserClient();
+    if (!c) return;
+    void c.auth.setSession({
+      access_token: initialAccessToken,
+      refresh_token: initialRefreshToken,
+    });
+  }, [initialAccessToken, initialRefreshToken]);
 
   // Auto-dismiss do banner de sucesso
   useEffect(() => {
@@ -110,27 +128,35 @@ export function PontoApp({
       const lat = geoState.status === "ok" ? geoState.lat : null;
       const lng = geoState.status === "ok" ? geoState.lng : null;
 
-      // INSERT direto via Supabase browser client — sem hop pelo nosso server.
+      // INSERT direto via Supabase browser client — sem hop pelo server.
+      // RLS da policy `punches_insert` (migration 006) cobre self via
+      // `e.user_id = auth.uid()`.
       //
-      // Tentamos antes:
-      //   - Server Action + revalidatePath: race condition perdia cookie em
-      //     iOS PWA standalone, redirecionava pra /login.
-      //   - API route + cookie: idem.
-      //   - API route + Bearer header: 401 persistente em mobile.
-      //
-      // Solução final: browser client fala direto com Postgrest. RLS da
-      // policy `punches_insert` (migration 006) cobre o caso self via
-      // `e.user_id = auth.uid()`. Sem cookie/header transit no meio.
+      // Em iOS PWA standalone, o storage local pode estar vazio mesmo com
+      // o cookie SSR válido. Cascata de fallbacks pra garantir que o client
+      // tenha session em memória antes do insert:
+      //   1) getSession() — caminho normal
+      //   2) refreshSession() — usa refresh_token se disponível
+      //   3) setSession() com os tokens passados pelo server na primeira render
       const browserClient = getBrowserClient();
       if (!browserClient) {
         setError("Supabase indisponível");
         return;
       }
 
-      // Sanity: confirma que o client tem session (senão insert daria 401
-      // do PostgREST, sem mensagem amigável).
-      const { data: sessData } = await browserClient.auth.getSession();
-      if (!sessData.session) {
+      let session = (await browserClient.auth.getSession()).data.session;
+      if (!session) {
+        const refreshed = await browserClient.auth.refreshSession();
+        session = refreshed.data.session ?? null;
+      }
+      if (!session && initialAccessToken && initialRefreshToken) {
+        const set = await browserClient.auth.setSession({
+          access_token: initialAccessToken,
+          refresh_token: initialRefreshToken,
+        });
+        session = set.data.session ?? null;
+      }
+      if (!session) {
         setError(
           "Sua sessão expirou. Toque pra recarregar e fazer login novamente.",
         );
@@ -156,7 +182,6 @@ export function PontoApp({
       }
 
       // Optimistic update — sem router.refresh() pra não invalidar a sessão.
-      // Próxima navegação (SSR) sincroniza com o servidor.
       const punch = inserted as TimeClockPunch;
       setPunches((prev) => [...prev, punch]);
       setSuccess({ punch, at: Date.now() });
