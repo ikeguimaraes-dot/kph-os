@@ -110,66 +110,56 @@ export function PontoApp({
       const lat = geoState.status === "ok" ? geoState.lat : null;
       const lng = geoState.status === "ok" ? geoState.lng : null;
 
-      // POST via fetch + Bearer token. Em PWA standalone iOS, cookies de
-      // sessão SSR podem não viajar consistentemente em fetches mesmo com
-      // credentials="include". Pegar o access_token direto do browser
-      // client e passar no header Authorization é o caminho mais robusto.
-      // O server valida via supabase.auth.getUser(token).
-      let accessToken: string | null = null;
+      // INSERT direto via Supabase browser client — sem hop pelo nosso server.
+      //
+      // Tentamos antes:
+      //   - Server Action + revalidatePath: race condition perdia cookie em
+      //     iOS PWA standalone, redirecionava pra /login.
+      //   - API route + cookie: idem.
+      //   - API route + Bearer header: 401 persistente em mobile.
+      //
+      // Solução final: browser client fala direto com Postgrest. RLS da
+      // policy `punches_insert` (migration 006) cobre o caso self via
+      // `e.user_id = auth.uid()`. Sem cookie/header transit no meio.
       const browserClient = getBrowserClient();
-      if (browserClient) {
-        const { data } = await browserClient.auth.getSession();
-        accessToken = data.session?.access_token ?? null;
-      }
-      if (!accessToken) {
-        setError("Sua sessão expirou. Toque pra recarregar e fazer login novamente.");
+      if (!browserClient) {
+        setError("Supabase indisponível");
         return;
       }
 
-      let res: Response;
-      try {
-        res = await fetch("/api/ponto/punch", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${accessToken}`,
-          },
-          credentials: "include", // mantém cookie como caminho secundário
-          body: JSON.stringify({
-            employeeId,
-            tipo: next,
-            latitude: lat,
-            longitude: lng,
-            deviceInfo,
-          }),
-        });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Falha de rede");
+      // Sanity: confirma que o client tem session (senão insert daria 401
+      // do PostgREST, sem mensagem amigável).
+      const { data: sessData } = await browserClient.auth.getSession();
+      if (!sessData.session) {
+        setError(
+          "Sua sessão expirou. Toque pra recarregar e fazer login novamente.",
+        );
         return;
       }
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          setError(
-            "Sua sessão expirou. Toque pra recarregar e fazer login novamente.",
-          );
-          return;
-        }
-        const txt = await res.text().catch(() => "");
-        try {
-          const j = JSON.parse(txt) as { error?: string };
-          setError(j.error ?? `Erro ${res.status}`);
-        } catch {
-          setError(txt || `Erro ${res.status}`);
-        }
+      const { data: inserted, error: insErr } = await browserClient
+        .from("time_clock_punches")
+        .insert({
+          employee_id: employeeId,
+          tipo: next,
+          latitude: lat,
+          longitude: lng,
+          device_info: deviceInfo,
+          timestamp_punch: new Date().toISOString(),
+        } as never)
+        .select()
+        .single();
+
+      if (insErr || !inserted) {
+        setError(insErr?.message ?? "Falha ao registrar ponto");
         return;
       }
 
-      const json = (await res.json()) as { ok: true; data: TimeClockPunch };
-      // Optimistic update — sem router.refresh() pra não invalidar a sessão
-      // no mobile PWA. Próximo SSR natural (próxima navegação) sincroniza.
-      setPunches((prev) => [...prev, json.data]);
-      setSuccess({ punch: json.data, at: Date.now() });
+      // Optimistic update — sem router.refresh() pra não invalidar a sessão.
+      // Próxima navegação (SSR) sincroniza com o servidor.
+      const punch = inserted as TimeClockPunch;
+      setPunches((prev) => [...prev, punch]);
+      setSuccess({ punch, at: Date.now() });
     });
   };
 
