@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Camera,
@@ -16,7 +15,6 @@ import {
 
 import { CameraCapture } from "@/components/ponto/CameraCapture";
 import { useDeviceInfo, useGeolocation } from "@/components/ponto/useGeolocation";
-import { registerPunch } from "@/lib/pessoas/actions";
 import {
   PUNCH_BUTTON_LABEL,
   PUNCH_COLOR,
@@ -49,7 +47,6 @@ export function PontoApp({
   employeeFuncao: string;
   initialPunches: TimeClockPunch[];
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [punches, setPunches] = useState<TimeClockPunch[]>(initialPunches);
   const [now, setNow] = useState<Date>(() => new Date());
@@ -112,20 +109,45 @@ export function PontoApp({
       const lat = geoState.status === "ok" ? geoState.lat : null;
       const lng = geoState.status === "ok" ? geoState.lng : null;
 
-      const res = await registerPunch({
-        employeeId,
-        tipo: next,
-        latitude: lat,
-        longitude: lng,
-        deviceInfo,
-      });
-      if (!res.ok) {
-        setError(res.error);
+      // POST via fetch em vez de Server Action — em PWA standalone iOS,
+      // Server Actions + revalidatePath têm race condition que perde o
+      // cookie de sessão Supabase, fazendo o user ser jogado pra /login.
+      // Route handler /api/ponto/punch evita isso.
+      let res: Response;
+      try {
+        res = await fetch("/api/ponto/punch", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            employeeId,
+            tipo: next,
+            latitude: lat,
+            longitude: lng,
+            deviceInfo,
+          }),
+        });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Falha de rede");
         return;
       }
-      setPunches((prev) => [...prev, res.data]);
-      setSuccess({ punch: res.data, at: Date.now() });
-      router.refresh();
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        try {
+          const j = JSON.parse(txt) as { error?: string };
+          setError(j.error ?? `Erro ${res.status}`);
+        } catch {
+          setError(txt || `Erro ${res.status}`);
+        }
+        return;
+      }
+
+      const json = (await res.json()) as { ok: true; data: TimeClockPunch };
+      // Optimistic update — sem router.refresh() pra não invalidar a sessão
+      // no mobile PWA. Próximo SSR natural (próxima navegação) sincroniza.
+      setPunches((prev) => [...prev, json.data]);
+      setSuccess({ punch: json.data, at: Date.now() });
     });
   };
 
