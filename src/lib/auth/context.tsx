@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { CurrentUser } from "@/lib/auth/server";
 import type { Unit } from "@/types/database";
 import { getBrowserClient } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ export function AuthProvider({
   units: Unit[];
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [unitId, setUnitIdState] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,14 +51,28 @@ export function AuthProvider({
     const valid = stored && units.some((u) => u.id === stored) ? stored : null;
     const fallback = units[0]?.id ?? null;
     const next = valid ?? fallback;
+    // Hidratação do localStorage — setState dentro de useEffect é intencional
+    // aqui (não dá pra ler localStorage durante render). Cookie já vem do
+    // servidor; este useEffect só cobre o caso "localStorage tem unit que
+    // o cookie expirou" — re-escreve o cookie no `persistUnit` abaixo.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUnitIdState(next);
-    // Garante que o cookie reflete a unit "real" — útil no primeiro load.
     if (next) persistUnit(next);
   }, [units]);
 
+  /**
+   * Troca a unit e invalida o tree do servidor.
+   *
+   * router.refresh() é crítico: sem ele, Server Components renderizados com
+   * o cookie antigo continuam servidos do router cache do Next quando o
+   * user navega — resultando em "voltar pra Madonna" (o fallback alfabético
+   * de getCurrentUnit) ao trocar pra Meet & Eat e mudar de página.
+   */
   const setUnitId = (id: string) => {
+    if (id === unitId) return;
     setUnitIdState(id);
     persistUnit(id);
+    router.refresh();
   };
 
   const signOut = async () => {
