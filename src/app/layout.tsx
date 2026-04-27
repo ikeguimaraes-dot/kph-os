@@ -16,9 +16,12 @@ export const metadata: Metadata = {
   title: "KPH OS",
   description: "Sistema operacional do grupo KPH — hospitalidade premium.",
   manifest: "/manifest.json",
+  // appleWebApp.capable=false impede iOS de oferecer "Add to Home Screen"
+  // como app standalone — homescreen vira bookmark Safari, mantendo
+  // localStorage compartilhado e sessão Supabase persistente.
+  // (PWA standalone tem storage isolado que quebra @supabase/ssr.)
   appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
+    capable: false,
     title: "KPH Ponto",
   },
 };

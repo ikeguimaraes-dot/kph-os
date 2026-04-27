@@ -25,6 +25,11 @@ function LoginInner() {
   const supabase = getBrowserClient();
   const supabaseConfigured = !!supabase;
 
+  // Colaborador chegando em /ponto via celular → default = senha (magic link
+  // dá fricção em mobile: abre mailer, login fora do contexto, pode falhar).
+  const isPontoFlow = next.startsWith("/ponto");
+  const defaultTab = isPontoFlow ? "password" : "magic";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -130,7 +135,26 @@ function LoginInner() {
           </div>
         )}
 
-        <Tabs defaultValue="magic" className="w-full">
+        {isPontoFlow && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "10px 12px",
+              background: "var(--brand-soft)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              fontSize: 11,
+              color: "var(--text-2)",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong style={{ color: "var(--brand)" }}>Registro de ponto:</strong>{" "}
+            entre com email e senha pelo Safari. Não instale como app no
+            homescreen — a sessão pode falhar.
+          </div>
+        )}
+
+        <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="magic" className="flex-1">
               <Mail className="mr-2 h-4 w-4" />

@@ -192,6 +192,8 @@ export function PontoApp({
     <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       <Header employeeName={employeeName} employeeFuncao={employeeFuncao} now={now} />
 
+      <StandaloneWarning />
+
       {success && <SuccessBanner punch={success.punch} />}
       {error && <ErrorBanner message={error} onClose={() => setError(null)} />}
 
@@ -617,5 +619,43 @@ function SignOutFooter() {
     >
       Sair
     </Link>
+  );
+}
+
+/**
+ * Banner mostrado APENAS quando o /ponto está rodando como PWA standalone
+ * em iOS — situação onde o storage isolado quebra a sessão Supabase.
+ * Em Safari normal, retorna null (sem banner). Detectado via media-query
+ * standard que iOS implementa: `display-mode: standalone`.
+ */
+function StandaloneWarning() {
+  const [isStandalone, setIsStandalone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(display-mode: standalone)");
+    // setState em useEffect é necessário (matchMedia só no client).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsStandalone(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsStandalone(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  if (!isStandalone) return null;
+  return (
+    <div
+      style={{
+        padding: "12px 14px",
+        background: "rgba(245,158,11,0.16)",
+        border: "1px solid rgba(245,158,11,0.4)",
+        borderRadius: 10,
+        fontSize: 11,
+        color: "#A16207",
+        lineHeight: 1.5,
+      }}
+    >
+      <strong>Atenção:</strong> remova este atalho do homescreen e abra o
+      ponto direto pelo Safari. PWA instalado tem storage isolado que pode
+      perder a sessão.
+    </div>
   );
 }
