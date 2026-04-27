@@ -43,3 +43,5 @@ next-env.d.ts
 # ETL output (contém CPFs reais — PII)
 scripts/etl-output.json
 scripts/_*.ts
+.next 2/
+ref_system/
