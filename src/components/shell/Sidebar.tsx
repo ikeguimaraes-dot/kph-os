@@ -15,7 +15,7 @@ import { useAuth, useUnit } from "@/lib/auth/context";
 const NAV = [
   { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
   { href: "/financeiro",    label: "Financeiro",    icon: Wallet },
-  { href: "/pessoas",       label: "Pessoas",       icon: Users },
+  { href: "/pessoas/colaboradores", label: "Pessoas", icon: Users },
   { href: "/pessoas/ferias", label: "Férias",       icon: Plane },
   { href: "/cardapio",      label: "Cardápio",      icon: BookOpen },
   { href: "/compras",       label: "Compras",       icon: ShoppingCart },

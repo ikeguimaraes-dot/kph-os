@@ -370,9 +370,22 @@ export function EmployeeTable({
                 </TableRow>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    onClick={() => router.push(`/pessoas/colaboradores/${row.original.id}`)}
+                    style={{ cursor: "pointer" }}
+                  >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        // Coluna de ações tem dropdown — stopPropagation impede o
+                        // clique no menu de virar navegação pra perfil.
+                        onClick={
+                          cell.column.id === "actions"
+                            ? (e) => e.stopPropagation()
+                            : undefined
+                        }
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
