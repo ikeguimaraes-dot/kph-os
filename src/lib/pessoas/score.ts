@@ -43,6 +43,25 @@ export function deltaForAbsence(tipo: AbsenceTipo | string): number {
   return ABSENCE_DELTA[tipo as AbsenceTipo] ?? 0;
 }
 
+// ── Bonificações (score positivo) ─────────────────────────────
+// Cada constante é o delta padrão de um tipo de score_event.
+export const SCORE_BONUS = {
+  ASSIDUIDADE_MENSAL: 5,        // mês sem faltas injustificadas
+  PONTUALIDADE_MENSAL: 3,       // mês com 100% pontualidade (sem punches rejeitados)
+  ANIVERSARIO_ADMISSAO: 2,      // 1 ano completado no mês
+  AVALIACAO_POSITIVA: 10,       // bônus manual padrão
+} as const;
+
+export const SCORE_EVENT_LABEL: Record<string, string> = {
+  assiduidade_mensal: "Assiduidade mensal",
+  pontualidade_mensal: "Pontualidade mensal",
+  aniversario_admissao: "Aniversário de admissão",
+  avaliacao_positiva: "Avaliação positiva",
+  bonus_manual: "Bônus manual",
+  warning: "Advertência",
+  absence: "Falta",
+};
+
 /** Score atual = 100 + sum(deltas), clampado em [0, 100]. */
 export function calcScore(events: ReadonlyArray<Pick<ScoreEvent, "delta">>): number {
   const sum = events.reduce((acc, e) => acc + (e.delta ?? 0), 0);

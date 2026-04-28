@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/server";
 import type { ActionResult } from "@/lib/result";
 import { gerarHolerite } from "@/lib/pessoas/clt";
 import type {
@@ -746,6 +747,51 @@ export async function getEmployeeScore(employeeId: string): Promise<number> {
   } catch (e) {
     console.error("[getEmployeeScore] exceção:", e);
     return 100;
+  }
+}
+
+/**
+ * Adiciona um bônus manual ao colaborador. Insere em score_events e recalcula
+ * `employees.score` (clamp 0..100). Apenas RH/gestor com permissão na unit
+ * via RLS (score_events aceita INSERT da role da unit).
+ */
+export async function addScoreBonus(
+  employeeId: string,
+  delta: number,
+  descricao: string,
+): Promise<ActionResult<ScoreEvent>> {
+  try {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return { ok: false, error: "Delta inválido" };
+    }
+    const trimmed = descricao.trim();
+    if (!trimmed) return { ok: false, error: "Descrição obrigatória" };
+
+    await requireUser();
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return { ok: false, error: "Supabase indisponível" };
+
+    const { data, error } = await supabase
+      .from(SCORE_EVENTS_TABLE)
+      .insert({
+        employee_id: employeeId,
+        tipo: delta > 0 ? "bonus_manual" : "ajuste_manual",
+        delta: Math.round(delta),
+        descricao: trimmed,
+      } as never)
+      .select()
+      .single();
+    if (error || !data) return { ok: false, error: error?.message ?? "Falha" };
+
+    // recalcula employees.score (lazy import pra evitar ciclo)
+    const { recalcEmployeeScore } = await import("@/lib/pessoas/score-monthly");
+    await recalcEmployeeScore(employeeId);
+
+    revalidatePath("/pessoas/disciplina");
+    revalidatePath(`/pessoas/colaboradores/${employeeId}`);
+    return { ok: true, data: data as ScoreEvent };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro" };
   }
 }
 

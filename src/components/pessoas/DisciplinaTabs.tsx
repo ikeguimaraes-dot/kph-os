@@ -1,7 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CalendarX, Plus, ShieldAlert, TrendingDown } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CalendarX,
+  Loader2,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  TrendingDown,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +27,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -33,16 +43,20 @@ import { AbsenceDialog } from "@/components/pessoas/AbsenceDialog";
 
 import {
   ABSENCE_LABEL,
+  SCORE_EVENT_LABEL,
   WARNING_LABEL,
   scoreColor,
   SCORE_COLORS,
 } from "@/lib/pessoas/score";
+import { addScoreBonus, listScoreEvents } from "@/lib/pessoas/actions";
+import { triggerMonthlyScore } from "@/lib/pessoas/score-monthly";
 import { avatarColor, formatDateBR, initials } from "@/lib/format";
 import type {
   AbsenceTipo,
   AbsenceWithEmployee,
   EmployeeScore,
   EmployeeStub,
+  ScoreEvent,
   WarningNivel,
   WarningWithEmployee,
 } from "@/types/pessoas";
@@ -66,12 +80,14 @@ type ModalState =
   | { kind: "absence"; employeeId?: string };
 
 export function DisciplinaTabs({
+  unitId,
   unitName,
   warnings,
   absences,
   scores,
   employees,
 }: {
+  unitId: string;
   unitName: string;
   warnings: WarningWithEmployee[];
   absences: AbsenceWithEmployee[];
@@ -123,7 +139,11 @@ export function DisciplinaTabs({
         </TabsContent>
 
         <TabsContent value="score">
-          <ScoreTable scores={scores} onSelect={(id) => setSelectedEmpId(id)} />
+          <ScoreTable
+            unitId={unitId}
+            scores={scores}
+            onSelect={(id) => setSelectedEmpId(id)}
+          />
         </TabsContent>
       </Tabs>
 
@@ -316,14 +336,43 @@ function AbsencesTable({ absences }: { absences: AbsenceWithEmployee[] }) {
 }
 
 function ScoreTable({
+  unitId,
   scores,
   onSelect,
 }: {
+  unitId: string;
   scores: EmployeeScore[];
   onSelect: (id: string) => void;
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [calcResult, setCalcResult] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [zoneFilter, setZoneFilter] = useState<"todos" | "verde" | "amarelo" | "vermelho">("todos");
+
+  function handleCalcBonuses() {
+    setCalcResult(null);
+    const today = new Date();
+    const periodo = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+    if (
+      !window.confirm(
+        `Calcular bônus do mês ${periodo.slice(0, 7)} pra unidade? Vai inserir score_events de assiduidade, pontualidade e aniversário.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const r = await triggerMonthlyScore(unitId, periodo);
+      if (!r.ok) {
+        setCalcResult(`Falha: ${r.error}`);
+        return;
+      }
+      setCalcResult(
+        `${r.data.events_inserted} bônus aplicado${r.data.events_inserted === 1 ? "" : "s"} ` +
+          `(assiduidade ${r.data.detail.assiduidade}, pontualidade ${r.data.detail.pontualidade}, aniversário ${r.data.detail.aniversario}).`,
+      );
+      router.refresh();
+    });
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -359,7 +408,13 @@ function ScoreTable({
         <ZoneCard label="Vermelho · < 60" count={dist.red} color={SCORE_COLORS.red.fg} />
       </div>
 
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "minmax(200px, 1fr) auto" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 8,
+          gridTemplateColumns: "minmax(200px, 1fr) auto auto",
+        }}
+      >
         <Input
           placeholder="Buscar nome ou função…"
           value={search}
@@ -376,7 +431,27 @@ function ScoreTable({
             <SelectItem value="vermelho">Vermelho</SelectItem>
           </SelectContent>
         </Select>
+        <Button onClick={handleCalcBonuses} disabled={pending} variant="outline">
+          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Sparkles className="mr-2 h-4 w-4" />
+          Calcular bônus do mês
+        </Button>
       </div>
+
+      {calcResult && (
+        <div
+          style={{
+            padding: "10px 12px",
+            background: "var(--brand-soft)",
+            border: "1px solid var(--brand)",
+            borderRadius: 8,
+            fontSize: 12,
+            color: "var(--brand)",
+          }}
+        >
+          {calcResult}
+        </div>
+      )}
 
       <TableShell>
         <Table>
@@ -444,8 +519,54 @@ function ScoreDetailOverlay({
   row: EmployeeScore;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [events, setEvents] = useState<ScoreEvent[] | null>(null);
+  const [showBonus, setShowBonus] = useState(false);
+  const [bonusDelta, setBonusDelta] = useState<string>("");
+  const [bonusDesc, setBonusDesc] = useState<string>("");
+  const [bonusError, setBonusError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listScoreEvents(row.employee.id).then((evts) => {
+      if (!cancelled) setEvents(evts);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.employee.id]);
+
   const fullName = `${row.employee.nome} ${row.employee.sobrenome}`.trim();
   const c = SCORE_COLORS[scoreColor(row.score)];
+
+  function handleSaveBonus() {
+    setBonusError(null);
+    const delta = Number(bonusDelta);
+    if (!Number.isFinite(delta) || delta === 0) {
+      setBonusError("Delta inválido (use número diferente de zero, positivo ou negativo).");
+      return;
+    }
+    if (!bonusDesc.trim()) {
+      setBonusError("Descrição obrigatória.");
+      return;
+    }
+    startTransition(async () => {
+      const r = await addScoreBonus(row.employee.id, delta, bonusDesc.trim());
+      if (!r.ok) {
+        setBonusError(r.error);
+        return;
+      }
+      // Refresh local state
+      setShowBonus(false);
+      setBonusDelta("");
+      setBonusDesc("");
+      const evts = await listScoreEvents(row.employee.id);
+      setEvents(evts);
+      router.refresh();
+    });
+  }
+
   return (
     <div
       onClick={onClose}
@@ -467,65 +588,106 @@ function ScoreDetailOverlay({
           borderRadius: 14,
           border: "1px solid var(--border)",
           padding: "22px 24px",
-          maxWidth: 460,
+          maxWidth: 580,
           width: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
           display: "flex",
           flexDirection: "column",
           gap: 14,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
-              color: "var(--text-3)",
-            }}
-          >
-            Score
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 1.2,
+                textTransform: "uppercase",
+                color: "var(--text-3)",
+              }}
+            >
+              Score
+            </div>
+            <h3
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                margin: "4px 0 0",
+                color: "var(--text)",
+              }}
+            >
+              {fullName}
+            </h3>
+            <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+              {row.employee.funcao ?? "—"}
+            </span>
           </div>
-          <h3
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
             style={{
-              fontSize: 18,
-              fontWeight: 700,
-              margin: "4px 0 0",
-              color: "var(--text)",
+              background: "transparent",
+              border: "none",
+              color: "var(--text-3)",
+              cursor: "pointer",
+              padding: 4,
             }}
           >
-            {fullName}
-          </h3>
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
-            {row.employee.funcao ?? "—"}
-          </span>
+            <X size={18} />
+          </button>
         </div>
+
         <div
           style={{
-            padding: "16px 18px",
+            padding: "14px 16px",
             borderRadius: 12,
             background: c.bg,
             border: `1px solid ${c.border}`,
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexDirection: "column",
+            gap: 10,
           }}
         >
-          <div style={{ fontSize: 11, color: c.fg, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
-            Score atual
-          </div>
           <div
             style={{
-              fontSize: 32,
-              fontWeight: 700,
-              color: c.fg,
-              fontVariantNumeric: "tabular-nums",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            {row.score}
-            <span style={{ fontSize: 14, opacity: 0.7 }}>/100</span>
+            <span
+              style={{
+                fontSize: 11,
+                color: c.fg,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+              }}
+            >
+              Score atual
+            </span>
+            <span
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: c.fg,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {row.score}
+              <span style={{ fontSize: 14, opacity: 0.7 }}>/100</span>
+            </span>
           </div>
+          <ScoreBar
+            score={row.score}
+            warnings={row.warnings_count}
+            absences={row.absences_count}
+          />
         </div>
+
         <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
           <span style={{ color: "var(--text-3)" }}>
             Adv: <strong style={{ color: "var(--text)" }}>{row.warnings_count}</strong>
@@ -534,14 +696,200 @@ function ScoreDetailOverlay({
             Faltas: <strong style={{ color: "var(--text)" }}>{row.absences_count}</strong>
           </span>
         </div>
+
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 8,
+            }}
+          >
+            <h4
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--text)",
+              }}
+            >
+              Histórico de eventos
+            </h4>
+            <Button size="sm" onClick={() => setShowBonus(true)} disabled={pending}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Bônus manual
+            </Button>
+          </div>
+
+          {events == null ? (
+            <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+              Carregando…
+            </p>
+          ) : events.length === 0 ? (
+            <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+              Sem eventos registrados.
+            </p>
+          ) : (
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                overflow: "hidden",
+                background: "var(--surface-2)",
+              }}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <Th>Tipo</Th>
+                    <Th>Descrição</Th>
+                    <Th>Data</Th>
+                    <Th align="right">Δ</Th>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {events.map((ev) => {
+                    const positive = ev.delta > 0;
+                    const deltaColor = positive
+                      ? "#15803D"
+                      : ev.delta < 0
+                      ? "#B91C1C"
+                      : "var(--text-3)";
+                    return (
+                      <TableRow key={ev.id}>
+                        <TableCell style={{ fontSize: 12, color: "var(--text-2)" }}>
+                          {SCORE_EVENT_LABEL[ev.tipo] ?? ev.tipo}
+                        </TableCell>
+                        <TableCell
+                          style={{
+                            fontSize: 12,
+                            color: "var(--text-2)",
+                            maxWidth: 220,
+                          }}
+                        >
+                          {ev.descricao ?? "—"}
+                        </TableCell>
+                        <TableCell style={{ fontSize: 11, color: "var(--text-3)" }}>
+                          {formatDateBR(ev.created_at.slice(0, 10))}
+                        </TableCell>
+                        <TableCell
+                          style={{
+                            textAlign: "right",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: deltaColor,
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {positive ? "+" : ""}{ev.delta}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+
+        {showBonus && (
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              padding: 14,
+              background: "var(--surface-2)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <h4
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--text)",
+              }}
+            >
+              Adicionar bônus manual
+            </h4>
+            <label
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-2)",
+                }}
+              >
+                Delta (use negativo pra ajuste)
+              </span>
+              <Input
+                type="number"
+                step="1"
+                value={bonusDelta}
+                onChange={(e) => setBonusDelta(e.target.value)}
+                placeholder="Ex: 10"
+              />
+            </label>
+            <label
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--text-2)",
+                }}
+              >
+                Descrição
+              </span>
+              <Textarea
+                rows={2}
+                value={bonusDesc}
+                onChange={(e) => setBonusDesc(e.target.value)}
+                placeholder="Motivo do bônus"
+              />
+            </label>
+            {bonusError && (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  background: "rgba(239,68,68,0.10)",
+                  border: "1px solid rgba(239,68,68,0.30)",
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: "#B91C1C",
+                }}
+              >
+                {bonusError}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBonus(false)}
+                disabled={pending}
+              >
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSaveBonus} disabled={pending}>
+                {pending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        )}
+
         <p style={{ fontSize: 11, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>
-          Score começa em 100. Cada advertência verbal vale −10, escrita −25,
-          suspensão −50. Falta injustificada: −5. Score nunca passa de 100 nem
-          fica abaixo de 0.
+          Score parte de 100. Penalidades: verbal −10, escrita −25, suspensão −50,
+          falta injustificada −5. Bônus mensais: assiduidade +5, pontualidade +3,
+          aniversário de admissão +2. Score sempre clampado em [0, 100].
         </p>
-        <Button variant="outline" onClick={onClose}>
-          Fechar
-        </Button>
       </div>
     </div>
   );

@@ -79,6 +79,7 @@ async function DisciplinaSection() {
 
   return (
     <DisciplinaTabs
+      unitId={unit.id}
       unitName={unit.name}
       warnings={warnings}
       absences={absences}
