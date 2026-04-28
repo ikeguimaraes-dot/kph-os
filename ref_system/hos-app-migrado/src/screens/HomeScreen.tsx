@@ -17,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { getSession, logout } from '../lib/auth';
 import { COLORS, Employee, getDisplayName } from '../lib/types';
+import { AtestadoModal } from '../components/AtestadoModal';
 
 const MESES: Record<string, string> = {
   '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
@@ -58,6 +59,7 @@ interface DashboardData {
 
 export default function HomeScreen({ navigation }: any) {
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [showAtestado, setShowAtestado] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData>({
     score: null, ultimoHolerite: null, bancoHoras: null, faltasMes: 0,
   });
@@ -225,16 +227,26 @@ export default function HomeScreen({ navigation }: any) {
     );
   }
 
-  const quickActions = [
+  const quickActions: Array<
+    | { icon: any; label: string; tab: string; onPress?: undefined }
+    | { icon: any; label: string; onPress: () => void; tab?: undefined }
+  > = [
     { icon: 'wallet-outline' as const, label: 'Financeiro', tab: 'Financeiro' },
     { icon: 'document-text-outline' as const, label: 'Documentos', tab: 'Documentos' },
     { icon: 'time-outline' as const, label: 'Registro', tab: 'Registro' },
     { icon: 'sunny-outline' as const, label: 'Férias', tab: 'Ferias' },
+    { icon: 'calendar-outline' as const, label: 'Escala', tab: 'Escala' },
+    {
+      icon: 'medical-outline' as const,
+      label: 'Atestado',
+      onPress: () => setShowAtestado(true),
+    },
   ];
 
   const saldoPositivo = dashboard.bancoHoras?.saldo_banco && !dashboard.bancoHoras.saldo_banco.startsWith('-');
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -339,7 +351,9 @@ export default function HomeScreen({ navigation }: any) {
           <TouchableOpacity
             key={action.label}
             style={styles.gridItem}
-            onPress={() => navigation.navigate(action.tab)}
+            onPress={() =>
+              action.onPress ? action.onPress() : navigation.navigate(action.tab!)
+            }
           >
             <Ionicons name={action.icon} size={28} color={COLORS.PRIMARY} />
             <Text style={styles.gridLabel}>{action.label}</Text>
@@ -356,6 +370,16 @@ export default function HomeScreen({ navigation }: any) {
         <InfoRow label="Status" value={employee?.status || '—'} />
       </View>
     </ScrollView>
+    {showAtestado && employee?.id && (
+      <AtestadoModal
+        mode="new"
+        visible={true}
+        employeeId={employee.id}
+        onClose={() => setShowAtestado(false)}
+        onSuccess={() => {}}
+      />
+    )}
+    </>
   );
 }
 

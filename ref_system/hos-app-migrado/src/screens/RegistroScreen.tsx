@@ -7,11 +7,13 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { getSession } from '../lib/auth';
 import { COLORS } from '../lib/types';
+import { AtestadoModal } from '../components/AtestadoModal';
 
 const MESES: Record<string, string> = {
   '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril',
@@ -98,6 +100,11 @@ export default function RegistroScreen({ navigation }: any) {
   const [transport, setTransport] = useState<TransportVoucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Justificar falta — modal compartilhado.
+  const [justifying, setJustifying] = useState<{
+    absenceId: string;
+    initialDate: string;
+  } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -263,7 +270,8 @@ export default function RegistroScreen({ navigation }: any) {
 
   function renderAbsenceCard(item: Absence) {
     // KPH OS: tipo / motivo / data.
-    const isDanger = item.tipo?.toLowerCase().includes('injustificad');
+    const isInjustificada = item.tipo?.toLowerCase().includes('injustificad');
+    const isDanger = isInjustificada;
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -281,6 +289,23 @@ export default function RegistroScreen({ navigation }: any) {
           <Text style={[styles.cardMeta, { color: COLORS.ERROR, fontWeight: '600' }]}>
             Impacto no score: {item.score_impact} pts
           </Text>
+        )}
+        {isInjustificada && !item.atestado_path && (
+          <TouchableOpacity
+            style={styles.justifyBtn}
+            onPress={() =>
+              setJustifying({ absenceId: item.id, initialDate: item.data })
+            }
+          >
+            <Ionicons name="document-attach-outline" size={14} color={COLORS.PRIMARY} />
+            <Text style={styles.justifyLabel}>Justificar com atestado</Text>
+          </TouchableOpacity>
+        )}
+        {item.atestado_path && (
+          <View style={styles.attestedTag}>
+            <Ionicons name="checkmark-circle" size={12} color={COLORS.SUCCESS} />
+            <Text style={styles.attestedLabel}>Atestado anexado</Text>
+          </View>
         )}
       </View>
     );
@@ -425,15 +450,28 @@ export default function RegistroScreen({ navigation }: any) {
   }
 
   return (
-    <SectionList
-      style={styles.container}
-      contentContainerStyle={styles.list}
-      sections={sections.filter(s => s.data.length > 0)}
-      keyExtractor={(item) => item.id}
-      renderItem={renderItem}
-      renderSectionHeader={renderSectionHeader}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    />
+    <>
+      <SectionList
+        style={styles.container}
+        contentContainerStyle={styles.list}
+        sections={sections.filter(s => s.data.length > 0)}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      />
+      {justifying && employeeId && (
+        <AtestadoModal
+          mode="justify"
+          visible={true}
+          absenceId={justifying.absenceId}
+          initialDate={justifying.initialDate}
+          employeeId={employeeId}
+          onClose={() => setJustifying(null)}
+          onSuccess={fetchAll}
+        />
+      )}
+    </>
   );
 }
 
@@ -542,5 +580,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 22,
+  },
+  justifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY,
+    backgroundColor: COLORS.PRIMARY + '14',
+  },
+  justifyLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.PRIMARY,
+  },
+  attestedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  attestedLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.SUCCESS,
   },
 });

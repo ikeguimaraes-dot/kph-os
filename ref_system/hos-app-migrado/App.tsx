@@ -14,6 +14,7 @@ import FinanceiroScreen from './src/screens/FinanceiroScreen';
 import DocumentosScreen from './src/screens/DocumentosScreen';
 import RegistroScreen from './src/screens/RegistroScreen';
 import FeriasScreen from './src/screens/FeriasScreen';
+import EscalaScreen from './src/screens/EscalaScreen';
 import CampanhasScreen from './src/screens/CampanhasScreen';
 import CandidateLoginScreen from './src/screens/CandidateLoginScreen';
 import InterviewScreen from './src/screens/InterviewScreen';
@@ -107,6 +108,16 @@ function AppTabs() {
           title: 'Férias',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="sunny-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Escala"
+        component={EscalaScreen}
+        options={{
+          title: 'Escala',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />
