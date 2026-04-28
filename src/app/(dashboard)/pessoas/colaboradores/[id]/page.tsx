@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  ClipboardCheck,
   Clock,
   CreditCard,
   GraduationCap,
@@ -25,6 +26,7 @@ import {
   listVacations,
 } from "@/lib/pessoas/actions";
 import { listRecordsForEmployee } from "@/app/(dashboard)/pessoas/treinamentos/actions";
+import { listReviewsForEmployee } from "@/app/(dashboard)/pessoas/avaliacoes/actions";
 import { requireUser } from "@/lib/auth/server";
 import { avatarColor, initials } from "@/lib/format";
 import { GorjetasTab } from "@/components/pessoas/profile-tabs/GorjetasTab";
@@ -32,6 +34,7 @@ import { VtTab } from "@/components/pessoas/profile-tabs/VtTab";
 import { HorasExtrasTab } from "@/components/pessoas/profile-tabs/HorasExtrasTab";
 import { FeriasTab } from "@/components/pessoas/profile-tabs/FeriasTab";
 import { TreinamentosTab } from "@/components/pessoas/profile-tabs/TreinamentosTab";
+import { AvaliacoesTab } from "@/components/pessoas/profile-tabs/AvaliacoesTab";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   CLT: "CLT",
@@ -165,14 +168,16 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
   const employee = await getEmployee(id);
   if (!employee) notFound();
 
-  const [tips, vts, hes, vacations, dependents, trainings] = await Promise.all([
-    listTipsRecords(id),
-    listTransportVouchers(id),
-    listOvertimeRecords(id),
-    listVacations(id, "employee"),
-    listDependents(id),
-    listRecordsForEmployee(id),
-  ]);
+  const [tips, vts, hes, vacations, dependents, trainings, reviews] =
+    await Promise.all([
+      listTipsRecords(id),
+      listTransportVouchers(id),
+      listOvertimeRecords(id),
+      listVacations(id, "employee"),
+      listDependents(id),
+      listRecordsForEmployee(id),
+      listReviewsForEmployee(id),
+    ]);
 
   const fullName = `${employee.nome} ${employee.sobrenome}`.trim();
   const display = employee.nome_social || fullName;
@@ -343,6 +348,10 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
             <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
             Treinamentos ({trainings.length})
           </TabsTrigger>
+          <TabsTrigger value="avaliacoes">
+            <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
+            Avaliações ({reviews.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados-pessoais">
@@ -479,6 +488,9 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
         </TabsContent>
         <TabsContent value="treinamentos">
           <TreinamentosTab records={trainings} />
+        </TabsContent>
+        <TabsContent value="avaliacoes">
+          <AvaliacoesTab employeeId={id} records={reviews} />
         </TabsContent>
       </Tabs>
     </div>

@@ -2235,6 +2235,101 @@ export type Database = {
           updated_at?: string;
         };
       };
+      // ── Avaliação de desempenho (migration 022) ───────────────
+      performance_templates: {
+        Row: {
+          id: string;
+          brand_id: string;
+          unit_id: string | null;
+          nome: string;
+          descricao: string | null;
+          funcao: string | null;
+          periodicidade: PerformancePeriodicidade;
+          criterios: PerformanceCriterio[];
+          ativo: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          brand_id: string;
+          unit_id?: string | null;
+          nome: string;
+          descricao?: string | null;
+          funcao?: string | null;
+          periodicidade: PerformancePeriodicidade;
+          criterios?: PerformanceCriterio[];
+          ativo?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          brand_id?: string;
+          unit_id?: string | null;
+          nome?: string;
+          descricao?: string | null;
+          funcao?: string | null;
+          periodicidade?: PerformancePeriodicidade;
+          criterios?: PerformanceCriterio[];
+          ativo?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      performance_reviews: {
+        Row: {
+          id: string;
+          employee_id: string;
+          template_id: string;
+          avaliador_id: string | null;
+          periodo: string;
+          status: PerformanceReviewStatus;
+          nota_geral: string | null;
+          respostas: Record<string, string | number | boolean | null>;
+          pontos_fortes: string | null;
+          pontos_melhoria: string | null;
+          plano_acao: string | null;
+          data_avaliacao: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          employee_id: string;
+          template_id: string;
+          avaliador_id?: string | null;
+          periodo: string;
+          status?: PerformanceReviewStatus;
+          nota_geral?: string | number | null;
+          respostas?: Record<string, string | number | boolean | null>;
+          pontos_fortes?: string | null;
+          pontos_melhoria?: string | null;
+          plano_acao?: string | null;
+          data_avaliacao?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          employee_id?: string;
+          template_id?: string;
+          avaliador_id?: string | null;
+          periodo?: string;
+          status?: PerformanceReviewStatus;
+          nota_geral?: string | number | null;
+          respostas?: Record<string, string | number | boolean | null>;
+          pontos_fortes?: string | null;
+          pontos_melhoria?: string | null;
+          plano_acao?: string | null;
+          data_avaliacao?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       // ── Fase E3 / Dashboard ──────────────────────────────────
@@ -2510,3 +2605,25 @@ export type TrainingStatus =
 
 export type TrainingTemplateRow = Tables<"training_templates">;
 export type TrainingRecordRow = Tables<"training_records">;
+
+// ── Avaliação de desempenho (migration 022) ───────────────────
+export type PerformancePeriodicidade =
+  | "mensal"
+  | "trimestral"
+  | "semestral"
+  | "anual";
+
+export type PerformanceReviewStatus = "rascunho" | "concluida" | "aprovada";
+
+export type PerformanceCriterioTipo = "nota_1_5" | "sim_nao" | "texto";
+
+export type PerformanceCriterio = {
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  peso: number;
+  tipo: PerformanceCriterioTipo;
+};
+
+export type PerformanceTemplateRow = Tables<"performance_templates">;
+export type PerformanceReviewRow = Tables<"performance_reviews">;
