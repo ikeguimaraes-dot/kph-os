@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireUser } from "@/lib/auth/server";
 import {
   getAlertas,
+  getAniversariantes,
   getHeadcountGrupo,
   getKpisMesAtual,
   getProximosEventos,
@@ -13,6 +14,7 @@ import { ProgressBar } from "@/components/dashboard/ProgressBar";
 import { MarcaPerformanceCard } from "@/components/dashboard/MarcaPerformanceCard";
 import { ProximosEventosTimeline } from "@/components/dashboard/ProximosEventosTimeline";
 import { AlertasPanel } from "@/components/dashboard/AlertasPanel";
+import { AniversariantesCard } from "@/components/dashboard/AniversariantesCard";
 import {
   currencyFmt,
   currencyFullFmt,
@@ -30,12 +32,13 @@ export default async function DashboardPage() {
   const greet = saudacao();
   const dia = dataExtenso();
 
-  const [resumo, kpis, headcount, proximos, alertas] = await Promise.all([
+  const [resumo, kpis, headcount, proximos, alertas, aniversariantes] = await Promise.all([
     getResumoGrupo(),
     getKpisMesAtual(),
     getHeadcountGrupo(),
     getProximosEventos(10),
     getAlertas(),
+    getAniversariantes(),
   ]);
 
   if (resumo.total_marcas_ativas === 0) {
@@ -175,6 +178,37 @@ export default async function DashboardPage() {
           </div>
         </KpiCard>
 
+        {(() => {
+          const primeCost =
+            resumo.receita_realizada_mes > 0
+              ? Math.round((resumo.folha_bruta_total / resumo.receita_realizada_mes) * 10000) / 100
+              : null;
+          const pcColor =
+            primeCost == null
+              ? "var(--text-3)"
+              : primeCost > 35
+              ? "#B91C1C"
+              : primeCost >= 30
+              ? "#A16207"
+              : "#15803D";
+          return (
+            <KpiCard
+              label="Prime cost (folha/receita)"
+              value={primeCost != null ? `${primeCost}%` : "—"}
+              sub={
+                primeCost == null
+                  ? "Sem receita lançada"
+                  : primeCost < 30
+                  ? "Eficiência ótima (<30%)"
+                  : primeCost < 35
+                  ? "Atenção (30–35%)"
+                  : "Crítico (>35%)"
+              }
+              accent={pcColor}
+            />
+          );
+        })()}
+
         <KpiCard
           label="Alertas operacionais"
           value={alertas.length}
@@ -287,9 +321,22 @@ export default async function DashboardPage() {
       </Suspense>
       <div style={{ height: 28 }} />
 
-      {/* SEÇÃO 5 — Alertas operacionais */}
-      <SectionTitle id="alertas">Alertas operacionais</SectionTitle>
-      <AlertasPanel alertas={alertas} />
+      {/* SEÇÃO 5 — Aniversários + Alertas */}
+      <div
+        style={{
+          display: "grid",
+          gap: 20,
+          gridTemplateColumns: "minmax(280px, 360px) 1fr",
+          alignItems: "start",
+          marginBottom: 28,
+        }}
+      >
+        <AniversariantesCard aniversariantes={aniversariantes} />
+        <div>
+          <SectionTitle id="alertas">Alertas operacionais</SectionTitle>
+          <AlertasPanel alertas={alertas} />
+        </div>
+      </div>
     </div>
   );
 }

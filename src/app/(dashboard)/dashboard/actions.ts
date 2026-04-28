@@ -7,6 +7,49 @@ import type {
   HeadcountMarcaRow,
   ProximoEventoRow,
 } from "@/types/database";
+
+export type AniversarianteRow = {
+  id: string;
+  nome: string;
+  sobrenome: string;
+  funcao: string | null;
+  data_nascimento: string;
+  dia: number;
+};
+
+export async function getAniversariantes(): Promise<AniversarianteRow[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+    const mesAtual = new Date().getMonth() + 1;
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, nome, sobrenome, funcao, data_nascimento")
+      .not("data_nascimento", "is", null)
+      .eq("ativo", true);
+    if (error) { console.error("[getAniversariantes]", error.message); return []; }
+    return ((data ?? []) as Array<{
+      id: string; nome: string; sobrenome: string; funcao: string | null; data_nascimento: string;
+    }>)
+      .filter((e) => {
+        if (!e.data_nascimento) return false;
+        const m = new Date(e.data_nascimento + "T00:00:00").getMonth() + 1;
+        return m === mesAtual;
+      })
+      .map((e) => ({
+        id: e.id,
+        nome: e.nome,
+        sobrenome: e.sobrenome,
+        funcao: e.funcao,
+        data_nascimento: e.data_nascimento,
+        dia: new Date(e.data_nascimento + "T00:00:00").getDate(),
+      }))
+      .sort((a, b) => a.dia - b.dia);
+  } catch (ex) {
+    console.error("[getAniversariantes] exceção:", ex);
+    return [];
+  }
+}
 import type {
   Alertas,
   HeadcountResumo,
