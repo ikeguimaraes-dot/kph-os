@@ -2330,6 +2330,80 @@ export type Database = {
           updated_at?: string;
         };
       };
+      // ── Metas por marca (migration 023) ──────────────────────
+      brand_targets: {
+        Row: {
+          id: string;
+          brand_id: string;
+          unit_id: string | null;
+          periodo: string;
+          receita_meta: string | null;
+          cmv_meta_pct: string | null;
+          prime_cost_meta_pct: string | null;
+          ticket_medio_meta: string | null;
+          nps_meta: string | null;
+          headcount_meta: number | null;
+          eventos_meta: number | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          brand_id: string;
+          unit_id?: string | null;
+          periodo: string;
+          receita_meta?: string | number | null;
+          cmv_meta_pct?: string | number | null;
+          prime_cost_meta_pct?: string | number | null;
+          ticket_medio_meta?: string | number | null;
+          nps_meta?: string | number | null;
+          headcount_meta?: number | null;
+          eventos_meta?: number | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          brand_id?: string;
+          unit_id?: string | null;
+          periodo?: string;
+          receita_meta?: string | number | null;
+          cmv_meta_pct?: string | number | null;
+          prime_cost_meta_pct?: string | number | null;
+          ticket_medio_meta?: string | number | null;
+          nps_meta?: string | number | null;
+          headcount_meta?: number | null;
+          eventos_meta?: number | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      target_notes: {
+        Row: {
+          id: string;
+          target_id: string;
+          nota: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          target_id: string;
+          nota: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          target_id?: string;
+          nota?: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       // ── Fase E3 / Dashboard ──────────────────────────────────
@@ -2627,3 +2701,7 @@ export type PerformanceCriterio = {
 
 export type PerformanceTemplateRow = Tables<"performance_templates">;
 export type PerformanceReviewRow = Tables<"performance_reviews">;
+
+// ── Metas por marca (migration 023) ───────────────────────────
+export type BrandTargetRow = Tables<"brand_targets">;
+export type TargetNoteRow = Tables<"target_notes">;

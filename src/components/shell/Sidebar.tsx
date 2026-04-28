@@ -8,7 +8,7 @@ import {
   MessageSquare, BarChart3, Megaphone, CalendarDays,
   Plane, Briefcase, Building2, Upload, LineChart,
   TrendingUp, Brain, Handshake, GraduationCap, ClipboardCheck,
-  ChevronDown, ChevronRight, Check, LogOut,
+  Target, ChevronDown, ChevronRight, Check, LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth, useUnit } from "@/lib/auth/context";
@@ -75,9 +75,10 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Brain,
     defaultOpen: false,
     items: [
-      { href: "/inteligencia",     label: "Inteligência", icon: BarChart3 },
-      { href: "/inteligencia/wbr", label: "WBR",          icon: LineChart },
-      { href: "/marcas",           label: "Marcas",       icon: Building2 },
+      { href: "/inteligencia",       label: "Inteligência", icon: BarChart3 },
+      { href: "/inteligencia/wbr",   label: "WBR",          icon: LineChart },
+      { href: "/inteligencia/metas", label: "Metas",        icon: Target },
+      { href: "/marcas",             label: "Marcas",       icon: Building2 },
     ],
   },
 ];
