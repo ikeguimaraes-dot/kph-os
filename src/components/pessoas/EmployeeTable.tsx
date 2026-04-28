@@ -13,7 +13,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
-  ArrowUpDown, ChevronLeft, ChevronRight, MoreHorizontal,
+  ArrowUpDown, Cake, ChevronLeft, ChevronRight, MoreHorizontal,
   Pencil, UserMinus, Search,
 } from "lucide-react";
 
@@ -47,6 +47,42 @@ import { avatarColor, formatBRL, formatDateBR, initials } from "@/lib/format";
 import type { Employee, EmployeeScore } from "@/types/pessoas";
 
 const PAGE_SIZE = 10;
+
+const MES_ABREV = [
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez",
+];
+
+/**
+ * Calcula info de aniversário a partir de data_nascimento (ISO YYYY-MM-DD).
+ * - displayDDMMM: "12/abr"
+ * - isToday: aniversário é exatamente hoje
+ * - isUpcoming: aniversário cai nos próximos 7 dias (incluindo hoje)
+ */
+function birthdayInfo(iso: string | null | undefined): {
+  display: string;
+  isToday: boolean;
+  isUpcoming: boolean;
+} {
+  if (!iso) return { display: "—", isToday: false, isUpcoming: false };
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return { display: "—", isToday: false, isUpcoming: false };
+  const dia = Number(m[3]);
+  const mes = Number(m[2]);
+  const display = `${String(dia).padStart(2, "0")}/${MES_ABREV[mes - 1] ?? "??"}`;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Próxima ocorrência do aniversário (mesmo ano se ainda não passou)
+  let next = new Date(now.getFullYear(), mes - 1, dia);
+  if (next < today) next = new Date(now.getFullYear() + 1, mes - 1, dia);
+  const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return {
+    display,
+    isToday: diffDays === 0,
+    isUpcoming: diffDays >= 0 && diffDays <= 7,
+  };
+}
 
 export function EmployeeTable({
   data,
@@ -175,6 +211,39 @@ export function EmployeeTable({
             {formatDateBR(row.original.data_admissao)}
           </span>
         ),
+      },
+      {
+        accessorKey: "data_nascimento",
+        header: "Aniversário",
+        cell: ({ row }) => {
+          const b = birthdayInfo(row.original.data_nascimento);
+          if (b.display === "—") {
+            return <span style={{ fontSize: 12, color: "var(--text-3)" }}>—</span>;
+          }
+          return (
+            <span
+              title={
+                b.isToday
+                  ? "É hoje! 🎉"
+                  : b.isUpcoming
+                    ? "Aniversário nos próximos 7 dias"
+                    : ""
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                fontWeight: b.isUpcoming ? 700 : 500,
+                color: b.isUpcoming ? "var(--brand)" : "var(--text-2)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {b.isUpcoming && <Cake size={11} />}
+              {b.display}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "ativo",
@@ -369,11 +438,18 @@ export function EmployeeTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                table.getRowModel().rows.map((row) => (
+                table.getRowModel().rows.map((row) => {
+                  const b = birthdayInfo(row.original.data_nascimento);
+                  return (
                   <TableRow
                     key={row.id}
                     onClick={() => router.push(`/pessoas/colaboradores/${row.original.id}`)}
-                    style={{ cursor: "pointer" }}
+                    style={{
+                      cursor: "pointer",
+                      borderLeft: b.isUpcoming
+                        ? `3px solid var(--brand)`
+                        : "3px solid transparent",
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -390,7 +466,8 @@ export function EmployeeTable({
                       </TableCell>
                     ))}
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>

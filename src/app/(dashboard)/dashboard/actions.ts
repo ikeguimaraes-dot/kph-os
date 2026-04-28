@@ -212,27 +212,37 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
 
     const now = new Date();
     const atualKey = ymInSP(now);
+    const competenciaAtual = `${atualKey}-01`;
     const sete_dias = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [brandsRes, kpiRes, headcountRes, prox7Res, alertasRes] = await Promise.all([
-      supabase
-        .from("brands")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true),
-      supabase.from("v_eventos_kpi").select("*"),
-      supabase.from("v_headcount_por_marca").select("*"),
-      supabase
-        .from("v_proximos_eventos")
-        .select("id", { count: "exact", head: true })
-        .lte("data_inicio", sete_dias),
-      supabase
-        .from("v_alertas")
-        .select("severidade", { count: "exact", head: true })
-        .eq("severidade", "error"),
-    ]);
+    const [brandsRes, kpiRes, dreRes, headcountRes, prox7Res, alertasRes] =
+      await Promise.all([
+        supabase
+          .from("brands")
+          .select("id", { count: "exact", head: true })
+          .eq("active", true),
+        supabase.from("v_eventos_kpi").select("*"),
+        supabase
+          .from("v_dre_consolidado")
+          .select("brand_id, receita_bruta")
+          .eq("competencia", competenciaAtual),
+        supabase.from("v_headcount_por_marca").select("*"),
+        supabase
+          .from("v_proximos_eventos")
+          .select("id", { count: "exact", head: true })
+          .lte("data_inicio", sete_dias),
+        supabase
+          .from("v_alertas")
+          .select("severidade", { count: "exact", head: true })
+          .eq("severidade", "error"),
+      ]);
 
     const kpiRows = (kpiRes.data ?? []) as EventosKpiRow[];
     const headcountRows = (headcountRes.data ?? []) as HeadcountMarcaRow[];
+    const dreRows = (dreRes.data ?? []) as Array<{
+      brand_id: string;
+      receita_bruta: number | string | null;
+    }>;
 
     const kpisMes = kpiRows.filter(
       (r) => (r.mes ?? "").slice(0, 7) === atualKey,
@@ -246,10 +256,19 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
       (s, r) => s + Number(r.receita_prevista ?? 0),
       0,
     );
-    const receita_realizada_mes = kpisMes.reduce(
+    // Receita realizada vem do DRE (cash_flow_entries — engloba todas as
+    // categorias: salão, eventos, bar, delivery). Fallback pra
+    // v_eventos_kpi.receita_realizada (só eventos concluídos) quando o
+    // financeiro do mês ainda não foi lançado.
+    const receita_dre = dreRows.reduce(
+      (s, r) => s + Number(r.receita_bruta ?? 0),
+      0,
+    );
+    const receita_eventos = kpisMes.reduce(
       (s, r) => s + Number(r.receita_realizada ?? 0),
       0,
     );
+    const receita_realizada_mes = receita_dre > 0 ? receita_dre : receita_eventos;
     const headcount_total = headcountRows.reduce(
       (s, r) => s + Number(r.headcount_ativo ?? 0),
       0,
