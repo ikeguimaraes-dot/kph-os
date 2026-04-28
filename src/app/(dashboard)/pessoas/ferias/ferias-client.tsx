@@ -1,9 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarCheck, CalendarClock, Clock, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  CalendarCheck,
+  CalendarClock,
+  Check,
+  Clock,
+  Loader2,
+  Search,
+  Smartphone,
+  X,
+} from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -21,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateBR } from "@/lib/format";
+import { updateVacationStatus } from "@/lib/pessoas/actions";
 import type { Vacation, VacationStatus } from "@/types/pessoas";
 
 type VacationRow = Vacation & {
@@ -55,10 +67,41 @@ export function FeriasConsolidadoClient({
   unitName: string;
   vacations: VacationRow[];
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [actingOn, setActingOn] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<VacationStatus | "all">(
     "all",
   );
   const [search, setSearch] = useState("");
+
+  function handleApprove(id: string, name: string) {
+    if (!window.confirm(`Aprovar férias de ${name}? Status passa pra "Em andamento".`)) return;
+    setActingOn(id);
+    startTransition(async () => {
+      const r = await updateVacationStatus(id, "em_andamento");
+      setActingOn(null);
+      if (!r.ok) {
+        alert(`Falha: ${r.error}`);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  function handleReject(id: string, name: string) {
+    if (!window.confirm(`Rejeitar férias de ${name}? Status passa pra "Cancelada".`)) return;
+    setActingOn(id);
+    startTransition(async () => {
+      const r = await updateVacationStatus(id, "cancelada");
+      setActingOn(null);
+      if (!r.ok) {
+        alert(`Falha: ${r.error}`);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   // Cards do topo — calculados sobre todas as férias (não dependem do filtro).
   const counts = useMemo(() => {
@@ -199,11 +242,15 @@ export function FeriasConsolidadoClient({
               <TableHead className="text-right">Dias</TableHead>
               <TableHead>Dobrado</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead style={{ textAlign: "right" }}>Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.map((v) => {
               const c = STATUS_COLOR[v.status];
+              const fromApp = v.created_by === null;
+              const isAgendada = v.status === "agendada";
+              const acting = actingOn === v.id;
               return (
                 <TableRow key={v.id}>
                   <TableCell>
@@ -242,19 +289,78 @@ export function FeriasConsolidadoClient({
                     {v.is_double_pay ? "Sim" : "Não"}
                   </TableCell>
                   <TableCell>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "2px 10px",
-                        borderRadius: 999,
-                        background: c.bg,
-                        color: c.fg,
-                        fontWeight: 600,
-                        fontSize: 11,
-                      }}
-                    >
-                      {c.label}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "2px 10px",
+                          borderRadius: 999,
+                          background: c.bg,
+                          color: c.fg,
+                          fontWeight: 600,
+                          fontSize: 11,
+                        }}
+                      >
+                        {c.label}
+                      </span>
+                      {fromApp && (
+                        <span
+                          title="Solicitação criada via app mobile (pendente de aprovação)"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            padding: "2px 7px",
+                            borderRadius: 999,
+                            background: "rgba(168,85,247,0.16)",
+                            color: "#7E22CE",
+                            fontWeight: 700,
+                            fontSize: 10,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.4,
+                          }}
+                        >
+                          <Smartphone size={9} />
+                          Via app
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell style={{ textAlign: "right" }}>
+                    {isAgendada ? (
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          gap: 6,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleApprove(v.id, v._employee_name)}
+                          disabled={pending}
+                          title="Aprovar férias (em_andamento)"
+                        >
+                          {acting && pending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5" style={{ color: "#15803D" }} />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(v.id, v._employee_name)}
+                          disabled={pending}
+                          title="Rejeitar (cancelada)"
+                        >
+                          <X className="h-3.5 w-3.5" style={{ color: "#B91C1C" }} />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "var(--text-3)" }}>—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
