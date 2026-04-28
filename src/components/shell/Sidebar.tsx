@@ -2,32 +2,89 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard, Wallet, Users, BookOpen, ShoppingCart,
   MessageSquare, BarChart3, Megaphone, CalendarDays,
   Plane, Briefcase, Building2, Upload, LineChart,
-  ChevronDown, Check, LogOut,
+  TrendingUp, Brain, Handshake,
+  ChevronDown, ChevronRight, Check, LogOut,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth, useUnit } from "@/lib/auth/context";
 
-// Marcas usa Building2 agora (Megaphone foi pra Campanhas — comunicação interna).
-const NAV = [
-  { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
-  { href: "/financeiro",    label: "Financeiro",    icon: Wallet },
-  { href: "/pessoas/colaboradores", label: "Pessoas", icon: Users },
-  { href: "/pessoas/ferias", label: "Férias",       icon: Plane },
-  { href: "/pessoas/importacao", label: "Importação", icon: Upload },
-  { href: "/cardapio",      label: "Cardápio",      icon: BookOpen },
-  { href: "/compras",       label: "Compras",       icon: ShoppingCart },
-  { href: "/cliente",       label: "Cliente",       icon: MessageSquare },
-  { href: "/inteligencia",  label: "Inteligência",  icon: BarChart3 },
-  { href: "/inteligencia/wbr", label: "WBR",         icon: LineChart },
-  { href: "/marcas",        label: "Marcas",        icon: Building2 },
-  { href: "/eventos",       label: "Eventos",       icon: CalendarDays },
-  { href: "/campanhas",     label: "Campanhas",     icon: Megaphone },
-  { href: "/recrutamento/vagas", label: "Recrutamento", icon: Briefcase },
+type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = {
+  id: string;                  // chave de localStorage
+  title: string | null;        // null = sempre visível, sem cabeçalho
+  icon: LucideIcon | null;
+  items: NavItem[];
+  defaultOpen: boolean;
+};
+
+// Estrutura por grupos. Ordem dos grupos importa.
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "home",
+    title: null,
+    icon: null,
+    defaultOpen: true,
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    id: "operacoes",
+    title: "Operações",
+    icon: TrendingUp,
+    defaultOpen: true,
+    items: [
+      { href: "/financeiro", label: "Financeiro", icon: Wallet },
+      { href: "/cardapio",   label: "Cardápio",   icon: BookOpen },
+      { href: "/compras",    label: "Compras",    icon: ShoppingCart },
+      { href: "/eventos",    label: "Eventos",    icon: CalendarDays },
+    ],
+  },
+  {
+    id: "pessoas",
+    title: "Pessoas",
+    icon: Users,
+    defaultOpen: true,
+    items: [
+      { href: "/pessoas/colaboradores", label: "Pessoas",    icon: Users },
+      { href: "/pessoas/ferias",        label: "Férias",     icon: Plane },
+      { href: "/pessoas/importacao",    label: "Importação", icon: Upload },
+    ],
+  },
+  {
+    id: "comercial",
+    title: "Comercial",
+    icon: Handshake,
+    defaultOpen: false,
+    items: [
+      { href: "/cliente",            label: "Cliente",      icon: MessageSquare },
+      { href: "/campanhas",          label: "Campanhas",    icon: Megaphone },
+      { href: "/recrutamento/vagas", label: "Recrutamento", icon: Briefcase },
+    ],
+  },
+  {
+    id: "inteligencia",
+    title: "Inteligência",
+    icon: Brain,
+    defaultOpen: false,
+    items: [
+      { href: "/inteligencia",     label: "Inteligência", icon: BarChart3 },
+      { href: "/inteligencia/wbr", label: "WBR",          icon: LineChart },
+      { href: "/marcas",           label: "Marcas",       icon: Building2 },
+    ],
+  },
 ];
+
+const ALL_NAV_ITEMS: { href: string; groupId: string }[] = NAV_GROUPS.flatMap(
+  (g) => g.items.map((it) => ({ href: it.href, groupId: g.id })),
+);
+
+const STORAGE_KEY = "kph_sidebar_groups";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -149,64 +206,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav
-        style={{
-          flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column",
-          gap: 1, overflowY: "auto",
-        }}
-      >
-        {(() => {
-          // Pinta APENAS o item de match mais específico (ex: em /pessoas/ferias
-          // só "Férias" fica ativo, não "Pessoas").
-          let bestIdx = -1;
-          let bestLen = -1;
-          NAV.forEach((it, i) => {
-            const matches =
-              it.href === "/"
-                ? pathname === "/"
-                : pathname === it.href || pathname.startsWith(it.href + "/");
-            if (matches && it.href.length > bestLen) {
-              bestIdx = i;
-              bestLen = it.href.length;
-            }
-          });
-          return NAV.map((it, i) => {
-            const Icon = it.icon;
-            const active = i === bestIdx;
-            return (
-            <Link
-              key={it.href}
-              href={it.href}
-              style={{
-                position: "relative",
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "9px 12px", borderRadius: 8,
-                textDecoration: "none",
-                color: active ? "var(--text)" : "var(--text-2)",
-                background: active ? "var(--surface-2)" : "transparent",
-                fontSize: 13, fontWeight: active ? 600 : 500,
-                transition: "all var(--t)",
-              }}
-            >
-              {active && (
-                <span
-                  style={{
-                    position: "absolute", left: -12, top: 6, bottom: 6, width: 3,
-                    background: "var(--brand)", borderRadius: "0 4px 4px 0",
-                  }}
-                />
-              )}
-              <Icon
-                size={16}
-                strokeWidth={active ? 2.2 : 1.8}
-                style={{ color: active ? "var(--brand)" : "currentColor" }}
-              />
-              <span style={{ flex: 1 }}>{it.label}</span>
-            </Link>
-          );
-          });
-        })()}
-      </nav>
+      <SidebarNav pathname={pathname} />
+
 
       <div
         style={{
@@ -259,5 +260,178 @@ export function Sidebar() {
         </Link>
       </div>
     </aside>
+  );
+}
+
+// ── Sub: nav com grupos colapsáveis ────────────────────────────
+function SidebarNav({ pathname }: { pathname: string }) {
+  // Match mais específico entre TODOS os items (mantém o comportamento antigo
+  // de pintar apenas o item mais específico — ex: /pessoas/ferias ativa
+  // "Férias" e não "Pessoas").
+  const activeHref = useMemo(() => {
+    let bestHref: string | null = null;
+    let bestLen = -1;
+    for (const it of ALL_NAV_ITEMS) {
+      const matches = pathname === it.href || pathname.startsWith(it.href + "/");
+      if (matches && it.href.length > bestLen) {
+        bestHref = it.href;
+        bestLen = it.href.length;
+      }
+    }
+    return bestHref;
+  }, [pathname]);
+
+  // Grupo do item ativo, pra forçar expansão.
+  const activeGroupId = useMemo(() => {
+    if (!activeHref) return null;
+    return ALL_NAV_ITEMS.find((it) => it.href === activeHref)?.groupId ?? null;
+  }, [activeHref]);
+
+  // Estado de collapsed por grupo, persistido em localStorage.
+  // Hidrata no primeiro render — antes disso usa defaultOpen.
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => {
+    const m: Record<string, boolean> = {};
+    for (const g of NAV_GROUPS) m[g.id] = g.defaultOpen;
+    return m;
+  });
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, boolean>;
+        setOpenMap((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // ignora corrupção
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sempre que o grupo do item ativo muda, força ele aberto (UX: navegar
+  // num item sempre revela seu grupo). Não persiste pra não sobrescrever
+  // a vontade do user de manter outros grupos colapsados.
+  useEffect(() => {
+    if (!activeGroupId) return;
+    setOpenMap((prev) => (prev[activeGroupId] ? prev : { ...prev, [activeGroupId]: true }));
+  }, [activeGroupId]);
+
+  function toggleGroup(id: string) {
+    setOpenMap((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // ignora QuotaExceeded
+        }
+      }
+      return next;
+    });
+  }
+
+  return (
+    <nav
+      style={{
+        flex: 1,
+        padding: "8px 12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        overflowY: "auto",
+      }}
+    >
+      {NAV_GROUPS.map((g) => {
+        const isOpen = openMap[g.id] ?? g.defaultOpen;
+        return (
+          <div key={g.id} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {g.title && (
+              <button
+                type="button"
+                onClick={() => toggleGroup(g.id)}
+                aria-expanded={isOpen}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  padding: "10px 8px 4px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 1.2,
+                  textTransform: "uppercase",
+                  color: "var(--text-3)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {g.icon && (
+                  <g.icon size={11} style={{ color: "var(--text-3)" }} />
+                )}
+                <span style={{ flex: 1 }}>{g.title}</span>
+                <ChevronRight
+                  size={12}
+                  style={{
+                    color: "var(--text-3)",
+                    transform: isOpen ? "rotate(90deg)" : "none",
+                    transition: hydrated ? "transform var(--t)" : "none",
+                  }}
+                />
+              </button>
+            )}
+            {isOpen &&
+              g.items.map((it) => {
+                const Icon = it.icon;
+                const active = it.href === activeHref;
+                return (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    style={{
+                      position: "relative",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "9px 12px",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      color: active ? "var(--text)" : "var(--text-2)",
+                      background: active ? "var(--surface-2)" : "transparent",
+                      fontSize: 13,
+                      fontWeight: active ? 600 : 500,
+                      transition: "all var(--t)",
+                    }}
+                  >
+                    {active && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: -12,
+                          top: 6,
+                          bottom: 6,
+                          width: 3,
+                          background: "var(--brand)",
+                          borderRadius: "0 4px 4px 0",
+                        }}
+                      />
+                    )}
+                    <Icon
+                      size={16}
+                      strokeWidth={active ? 2.2 : 1.8}
+                      style={{ color: active ? "var(--brand)" : "currentColor" }}
+                    />
+                    <span style={{ flex: 1 }}>{it.label}</span>
+                  </Link>
+                );
+              })}
+          </div>
+        );
+      })}
+    </nav>
   );
 }
