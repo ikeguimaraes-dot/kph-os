@@ -2071,6 +2071,83 @@ export type Database = {
           created_at?: string;
         };
       };
+      // ── Cliente / CRM (migration 020) ─────────────────────────
+      clients: {
+        Row: {
+          id: string;
+          brand_id: string;
+          unit_id: string;
+          nome: string;
+          email: string | null;
+          telefone: string | null;
+          empresa: string | null;
+          origem: ClientOrigem | null;
+          observacoes: string | null;
+          ativo: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          brand_id: string;
+          unit_id: string;
+          nome: string;
+          email?: string | null;
+          telefone?: string | null;
+          empresa?: string | null;
+          origem?: ClientOrigem | null;
+          observacoes?: string | null;
+          ativo?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          brand_id?: string;
+          unit_id?: string;
+          nome?: string;
+          email?: string | null;
+          telefone?: string | null;
+          empresa?: string | null;
+          origem?: ClientOrigem | null;
+          observacoes?: string | null;
+          ativo?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      client_interactions: {
+        Row: {
+          id: string;
+          client_id: string;
+          tipo: ClientInteractionTipo;
+          descricao: string | null;
+          data: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          tipo: ClientInteractionTipo;
+          descricao?: string | null;
+          data?: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          client_id?: string;
+          tipo?: ClientInteractionTipo;
+          descricao?: string | null;
+          data?: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       // ── Fase E3 / Dashboard ──────────────────────────────────
@@ -2316,3 +2393,23 @@ export type PurchaseOrderStatus =
 export type SupplierRow = Tables<"suppliers">;
 export type PurchaseOrderRow = Tables<"purchase_orders">;
 export type PurchaseOrderItemRow = Tables<"purchase_order_items">;
+
+// ── Cliente / CRM (migration 020) ─────────────────────────────
+export type ClientOrigem =
+  | "indicacao"
+  | "site"
+  | "instagram"
+  | "whatsapp"
+  | "evento"
+  | "outro";
+
+export type ClientInteractionTipo =
+  | "ligacao"
+  | "email"
+  | "whatsapp"
+  | "reuniao"
+  | "visita"
+  | "outro";
+
+export type ClientRow = Tables<"clients">;
+export type ClientInteractionRow = Tables<"client_interactions">;
