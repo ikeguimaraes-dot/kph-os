@@ -10,7 +10,7 @@ import { updateSession } from "@/lib/supabase/proxy";
  *   - com sessão em /login → redireciona pra / (dashboard)
  */
 
-const PUBLIC_PREFIXES = ["/login", "/auth/callback", "/auth/sign-out"];
+const PUBLIC_PREFIXES = ["/login", "/auth/callback", "/auth/sign-out", "/api/auth-debug"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
