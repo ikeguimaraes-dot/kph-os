@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   Download,
   Loader2,
+  Printer,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -84,9 +85,19 @@ export function PayslipDetail({
   };
 
   return (
-    <div style={{ maxWidth: 820, margin: "0 auto" }}>
+    <div id="holerite-print" style={{ maxWidth: 820, margin: "0 auto" }}>
+      {/* Print-specific styles: hide everything except #holerite-print */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #holerite-print, #holerite-print * { visibility: visible !important; }
+          #holerite-print { position: fixed; inset: 0; padding: 32px; max-width: 100%; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
       <Link
         href="/pessoas/holerites"
+        className="no-print"
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -154,7 +165,7 @@ export function PayslipDetail({
             </span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="no-print" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {status === "rascunho" && (
             <Button onClick={handleApprove} disabled={isPending} variant="outline">
               {isPending ? (
@@ -175,6 +186,10 @@ export function PayslipDetail({
               Marcar como pago
             </Button>
           )}
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Imprimir
+          </Button>
           <a
             href={`/api/holerites/${payslip.id}/pdf`}
             target="_blank"

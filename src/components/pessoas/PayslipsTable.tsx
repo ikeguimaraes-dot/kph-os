@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  Download,
   ExternalLink,
   Search,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import {
 
 import { approvePayslip, markPayslipPaid } from "@/lib/pessoas/actions";
 import { avatarColor, formatBRL, initials } from "@/lib/format";
+import { downloadCsv } from "@/lib/export";
 import type { PayslipStatus, PayslipWithEmployee } from "@/types/pessoas";
 
 const PAGE_SIZE = 15;
@@ -301,20 +303,54 @@ export function PayslipsTable({
             style={{ paddingLeft: 30 }}
           />
         </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => v && setStatusFilter(v as PayslipStatus | "todos")}
-        >
-          <SelectTrigger style={{ minWidth: 160 }}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos status</SelectItem>
-            <SelectItem value="rascunho">Rascunho</SelectItem>
-            <SelectItem value="aprovado">Aprovado</SelectItem>
-            <SelectItem value="pago">Pago</SelectItem>
-          </SelectContent>
-        </Select>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => v && setStatusFilter(v as PayslipStatus | "todos")}
+          >
+            <SelectTrigger style={{ minWidth: 160 }}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos status</SelectItem>
+              <SelectItem value="rascunho">Rascunho</SelectItem>
+              <SelectItem value="aprovado">Aprovado</SelectItem>
+              <SelectItem value="pago">Pago</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            style={{ height: 36, gap: 6, whiteSpace: "nowrap" }}
+            onClick={() => {
+              const rows = filtered.map((p) => {
+                const nome = `${p.employee?.nome ?? ""} ${p.employee?.sobrenome ?? ""}`.trim();
+                const bruto =
+                  Number(p.salario_base) +
+                  Number(p.horas_extras) +
+                  Number(p.adicional_noturno) +
+                  Number(p.gorjeta) +
+                  Number(p.dsr_gorjeta);
+                return [
+                  nome,
+                  p.employee?.funcao ?? "",
+                  p.competencia,
+                  bruto.toFixed(2),
+                  Number(p.liquido).toFixed(2),
+                  (p.status as string) ?? "rascunho",
+                ];
+              });
+              downloadCsv(
+                `holerites-${new Date().toISOString().slice(0, 10)}.csv`,
+                ["Colaborador", "Função", "Competência", "Bruto", "Líquido", "Status"],
+                rows,
+              );
+            }}
+          >
+            <Download size={13} />
+            CSV
+          </Button>
+        </div>
       </div>
 
       <div

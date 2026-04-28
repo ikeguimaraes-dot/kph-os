@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Check,
   ChefHat,
+  Download,
   FileWarning,
   MoreHorizontal,
   Pencil,
@@ -42,6 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatBRL } from "@/lib/format";
+import { downloadCsv } from "@/lib/export";
 import {
   deleteCmvItem,
   toggleCmvItemAtivo,
@@ -358,6 +360,31 @@ export function CardapioClient({
             <SelectItem value="todos">Todos</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          style={{ height: 36, gap: 6, whiteSpace: "nowrap" }}
+          onClick={() => {
+            const rows = filtered.map((it) => [
+              it.nome,
+              it.categoria,
+              it.brand_name ?? "",
+              it.preco_venda,
+              it.custo_total ?? "",
+              it.cmv_pct != null ? it.cmv_pct : "",
+              it.tem_ficha_tecnica ? "Sim" : "Não",
+              it.ativo ? "Ativo" : "Inativo",
+            ]);
+            downloadCsv(
+              `cardapio-cmv-${new Date().toISOString().slice(0, 10)}.csv`,
+              ["Nome", "Categoria", "Marca", "Preço Venda", "Custo Total", "CMV%", "Ficha Técnica", "Status"],
+              rows,
+            );
+          }}
+        >
+          <Download size={13} />
+          CSV
+        </Button>
       </div>
 
       {/* Tabela agrupada por categoria */}
