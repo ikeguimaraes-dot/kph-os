@@ -1949,6 +1949,128 @@ export type Database = {
           updated_at?: string;
         };
       };
+      // ── Compras (migration 019) ───────────────────────────────
+      suppliers: {
+        Row: {
+          id: string;
+          unit_id: string;
+          brand_id: string;
+          nome: string;
+          cnpj: string | null;
+          telefone: string | null;
+          email: string | null;
+          categoria: string | null;
+          ativo: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          unit_id: string;
+          brand_id: string;
+          nome: string;
+          cnpj?: string | null;
+          telefone?: string | null;
+          email?: string | null;
+          categoria?: string | null;
+          ativo?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          unit_id?: string;
+          brand_id?: string;
+          nome?: string;
+          cnpj?: string | null;
+          telefone?: string | null;
+          email?: string | null;
+          categoria?: string | null;
+          ativo?: boolean;
+          created_at?: string;
+        };
+      };
+      purchase_orders: {
+        Row: {
+          id: string;
+          unit_id: string;
+          brand_id: string;
+          numero: string;
+          fornecedor: string | null;
+          supplier_id: string | null;
+          status: PurchaseOrderStatus;
+          data_pedido: string;
+          data_prevista: string | null;
+          valor_total: number;
+          observacoes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          unit_id: string;
+          brand_id: string;
+          numero?: string;
+          fornecedor?: string | null;
+          supplier_id?: string | null;
+          status?: PurchaseOrderStatus;
+          data_pedido?: string;
+          data_prevista?: string | null;
+          valor_total?: number;
+          observacoes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          unit_id?: string;
+          brand_id?: string;
+          numero?: string;
+          fornecedor?: string | null;
+          supplier_id?: string | null;
+          status?: PurchaseOrderStatus;
+          data_pedido?: string;
+          data_prevista?: string | null;
+          valor_total?: number;
+          observacoes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      purchase_order_items: {
+        Row: {
+          id: string;
+          order_id: string;
+          nome: string;
+          unidade: string | null;
+          quantidade: number;
+          quantidade_recebida: number;
+          preco_unitario: number;
+          total: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          nome: string;
+          unidade?: string | null;
+          quantidade?: number;
+          quantidade_recebida?: number;
+          preco_unitario?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          nome?: string;
+          unidade?: string | null;
+          quantidade?: number;
+          quantidade_recebida?: number;
+          preco_unitario?: number;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       // ── Fase E3 / Dashboard ──────────────────────────────────
@@ -2182,3 +2304,15 @@ export type CampaignCategory = "saude" | "evento" | "comunicado";
 export type CampaignTarget = "all" | "department";
 export type CandidateStatus = "pendente" | "aprovado" | "reprovado";
 export type CandidateInterviewStatus = "pendente" | "em_andamento" | "concluido";
+
+// ── Compras (migration 019) ───────────────────────────────────
+export type PurchaseOrderStatus =
+  | "rascunho"
+  | "enviado"
+  | "parcial"
+  | "recebido"
+  | "cancelado";
+
+export type SupplierRow = Tables<"suppliers">;
+export type PurchaseOrderRow = Tables<"purchase_orders">;
+export type PurchaseOrderItemRow = Tables<"purchase_order_items">;
