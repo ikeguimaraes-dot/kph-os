@@ -95,11 +95,15 @@ function isNextInternal(e: unknown): boolean {
   return typeof message === "string" && message.includes("Dynamic server usage");
 }
 
-/** Falha (redireciona para /login) se não houver sessão. */
+/** AUTH DESATIVADO — retorna user bypass quando não há sessão. */
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  return user;
+  if (user) return user;
+  return {
+    id: "bypass",
+    email: "bypass@kph.os",
+    roles: [{ role: "founder" as RoleName, unitId: null, brandId: null, groupId: null }],
+  };
 }
 
 /** Falha se o user não tiver pelo menos uma das roles especificadas. */

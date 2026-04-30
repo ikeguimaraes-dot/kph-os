@@ -20,6 +20,10 @@ export async function createSupabaseServerClient(
 
   const cookieStore = resolvedCookieStore ?? (await cookies());
 
+  // AUTH DESATIVADO: sem sessão → service role para bypassar RLS
+  const hasSession = cookieStore.getAll().some((c) => c.name.includes("auth-token"));
+  if (!hasSession) return createServiceClient();
+
   return createServerClient<Database>(url, anonKey, {
     cookies: {
       getAll() {
