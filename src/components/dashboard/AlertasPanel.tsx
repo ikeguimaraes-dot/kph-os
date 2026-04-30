@@ -110,15 +110,14 @@ export function AlertasPanel({ alertas }: Props) {
               style={{
                 padding: "12px 18px",
                 borderTop: i === 0 ? "none" : "1px solid var(--border)",
-                display: "grid",
-                gridTemplateColumns: "auto 1fr auto",
-                gap: 12,
-                alignItems: "center",
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-start",
               }}
             >
               <SeverityIcon severidade={a.severidade} />
 
-              <div style={{ minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, wordBreak: "break-word", overflowWrap: "break-word" }}>
                 <div
                   style={{
                     fontSize: 12,
@@ -154,6 +153,7 @@ export function AlertasPanel({ alertas }: Props) {
                     letterSpacing: 0.4,
                     textTransform: "uppercase",
                     whiteSpace: "nowrap",
+                    flexShrink: 0,
                   }}
                 >
                   Ver O.S. →
