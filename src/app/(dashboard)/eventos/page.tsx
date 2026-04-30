@@ -28,15 +28,26 @@ export default async function EventosPage({
   await requireUser();
   const sp = await searchParams;
 
-  const [brands, stats, events] = await Promise.all([
-    listAccessibleBrands(),
-    getEventStats(),
-    listEvents({
-      brand_id: sp.brand || null,
-      status: (sp.status as EventStatus) || null,
-      search: sp.q || null,
-    }),
-  ]);
+  let brands, stats, events
+  try {
+    ;[brands, stats, events] = await Promise.all([
+      listAccessibleBrands(),
+      getEventStats(),
+      listEvents({
+        brand_id: sp.brand || null,
+        status: (sp.status as EventStatus) || null,
+        search: sp.q || null,
+      }),
+    ])
+  } catch (e: any) {
+    return (
+      <div style={{ padding: 40, color: 'red', fontFamily: 'monospace' }}>
+        <h2>ERRO EM /eventos</h2>
+        <pre>{e?.message}</pre>
+        <pre>{e?.stack}</pre>
+      </div>
+    )
+  }
 
   return (
     <div>

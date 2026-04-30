@@ -29,15 +29,18 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       return null;
     }
 
+    // getSession() lê o JWT do cookie localmente (sem chamada de rede).
+    // O middleware já validou o token com getUser() — aqui confiamos nele.
     const {
-      data: { user },
+      data: { session },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getSession();
     if (authError) {
-      console.warn("[getCurrentUser] auth.getUser error:", authError.message);
+      console.warn("[getCurrentUser] auth.getSession error:", authError.message);
       return null;
     }
-    if (!user) return null;
+    if (!session) return null;
+    const user = session.user;
 
     // Pega roles do user. RLS permite SELECT do próprio user_roles.
     // Embedded select (roles!inner) não é tipado pelo nosso Database — cast explícito.
