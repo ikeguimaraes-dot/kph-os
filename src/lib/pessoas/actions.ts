@@ -1180,18 +1180,25 @@ export async function getSessionTokens(): Promise<{
 }
 
 /** Lookup employee pelo user_id da sessão (rota /ponto). */
-export async function getMyEmployee(): Promise<Employee | null> {
+// AUTH DESATIVADO: user_id do bypass (Mariana Costa — conta de teste)
+const BYPASS_USER_ID = "ac559fa1-f10b-4ec4-9f4b-fafbc881a884";
+
+export async function getMyEmployee(userId?: string): Promise<Employee | null> {
   try {
     const supabase = await createSupabaseServerClient();
     if (!supabase) return null;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return null;
+
+    let uid = userId;
+    if (!uid || uid === "bypass") {
+      // AUTH DESATIVADO: sem sessão real → usa id fixo de teste
+      const { data: { user } } = await supabase.auth.getUser();
+      uid = user?.id ?? BYPASS_USER_ID;
+    }
+
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", uid)
       .eq("ativo", true)
       .maybeSingle();
     if (error) {

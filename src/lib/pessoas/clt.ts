@@ -122,8 +122,15 @@ export function calcHorasExtras(
   for (const s of shifts) {
     if (s.tipo === "folga") continue;
     if (!sameMonth(s.data, mes, ano)) continue;
-    const trabalhadas = hoursWorked(s.hora_inicio, s.hora_fim);
+    
+    const realTotal = hoursWorked(s.hora_inicio, s.hora_fim);
+    const nightReal = nightHoursInShift(s.hora_inicio, s.hora_fim);
+    const dayReal = realTotal - nightReal;
+    const { horasReduzidas } = calcularHoraNoturna(nightReal);
+    
+    const trabalhadas = dayReal + horasReduzidas;
     const excedente = trabalhadas - JORNADA_NORMAL_H;
+    
     if (excedente <= 0) continue;
     const isDomingo = isDomingoIso(s.data);
     if (isDomingo || s.tipo === "feriado") {
@@ -141,10 +148,25 @@ export function calcHorasExtras(
 
 // ── Adicional noturno (art. 73 CLT) ────────────────────────────
 // 20% sobre hora normal para horas trabalhadas entre 22h e 05h.
-// Hora noturna reduzida (52'30") fica como TODO — usamos hora cheia por v1.
+// Hora noturna reduzida (52'30")
 
-const NIGHT_START_MIN = 22 * 60;
-const NIGHT_END_MIN = 5 * 60 + 24 * 60; // 05:00 do dia seguinte = 1740
+const HORA_NOTURNA_FATOR = 60 / 52.5; // 1.142857...
+const ADICIONAL_NOTURNO = 0.20;
+const INICIO_NOTURNO = 22; // 22h
+const FIM_NOTURNO = 5;    // 05h
+
+const NIGHT_START_MIN = INICIO_NOTURNO * 60;
+const NIGHT_END_MIN = FIM_NOTURNO * 60 + 24 * 60; // 05:00 do dia seguinte = 1740
+
+export function calcularHoraNoturna(horasNoturnasReais: number): {
+  horasReduzidas: number;
+  adicionalNoturno: number;
+} {
+  return {
+    horasReduzidas: horasNoturnasReais * HORA_NOTURNA_FATOR,
+    adicionalNoturno: horasNoturnasReais * ADICIONAL_NOTURNO, // 20% sobre as horas reais
+  };
+}
 
 export function calcAdicionalNoturno(
   shifts: ReadonlyArray<Shift>,
@@ -156,17 +178,20 @@ export function calcAdicionalNoturno(
     return { valor: 0, horas: 0 };
   }
   const horaNormal = salarioBase / HORAS_MES;
-  let horas = 0;
+  let horasReais = 0;
   for (const s of shifts) {
     if (s.tipo === "folga") continue;
     if (!sameMonth(s.data, mes, ano)) continue;
-    horas += nightHoursInShift(s.hora_inicio, s.hora_fim);
+    horasReais += nightHoursInShift(s.hora_inicio, s.hora_fim);
   }
-  const valor = horas * horaNormal * 0.2;
-  return { valor: round2(valor), horas: round2(horas) };
+  
+  const { adicionalNoturno } = calcularHoraNoturna(horasReais);
+  const valor = adicionalNoturno * horaNormal;
+  
+  return { valor: round2(valor), horas: round2(horasReais) };
 }
 
-/** Overlap do turno com janela [22:00, 05:00 do dia seguinte], em horas. */
+/** Overlap do turno com janela [22:00, 05:00 do dia seguinte], em horas reais. */
 export function nightHoursInShift(
   horaInicio: string | null | undefined,
   horaFim: string | null | undefined,

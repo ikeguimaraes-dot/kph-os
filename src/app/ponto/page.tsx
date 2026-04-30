@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PontoPage() {
   const user = await requireUser();
-  const employee = await getMyEmployee();
+  const employee = await getMyEmployee(user.id);
 
   if (!employee) {
     return <NoEmployeeBound email={user.email} />;

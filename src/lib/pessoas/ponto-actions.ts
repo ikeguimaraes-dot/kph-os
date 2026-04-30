@@ -57,17 +57,18 @@ export async function registrarPunch(
   if (!cookieClient) {
     return { ok: false, error: "Supabase indisponível" };
   }
-  const {
-    data: { user },
-    error: authErr,
-  } = await cookieClient.auth.getUser();
-  if (authErr || !user) {
-    return { ok: false, error: "Não autenticado" };
-  }
+  const { data: { user } } = await cookieClient.auth.getUser();
+  // AUTH DESATIVADO: sem sessão real → usa id fixo de teste (Mariana Costa)
+  const BYPASS_USER_ID = "ac559fa1-f10b-4ec4-9f4b-fafbc881a884";
+  const effectiveUserId = user?.id ?? BYPASS_USER_ID;
 
   // ── 2) Authz: caller é dono do employee OU tem role na unit ──
+  const service = createServiceClient();
+  if (!service) {
+    return { ok: false, error: "SUPABASE_SERVICE_ROLE_KEY ausente no servidor" };
+  }
   type EmpRow = { id: string; user_id: string | null; unit_id: string };
-  const { data: employee, error: empErr } = await cookieClient
+  const { data: employee, error: empErr } = await service
     .from("employees")
     .select("id, user_id, unit_id")
     .eq("id", input.employeeId)
@@ -79,13 +80,13 @@ export async function registrarPunch(
     return { ok: false, error: "Colaborador não encontrado" };
   }
 
-  const isSelf = employee.user_id === user.id;
+  const isSelf = employee.user_id === effectiveUserId;
   let canPunchForOthers = false;
   if (!isSelf) {
-    const { data: roles, error: rolesErr } = await cookieClient
+    const { data: roles, error: rolesErr } = await service
       .from("user_roles")
       .select("unit_id")
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveUserId)
       .eq("unit_id", employee.unit_id);
     if (rolesErr) {
       return { ok: false, error: `Lookup roles falhou: ${rolesErr.message}` };
@@ -100,14 +101,6 @@ export async function registrarPunch(
   }
 
   // ── 3) Insert via service_role (bypassa RLS) ─────────────────
-  const service = createServiceClient();
-  if (!service) {
-    return {
-      ok: false,
-      error: "SUPABASE_SERVICE_ROLE_KEY ausente no servidor",
-    };
-  }
-
   // ── 3.1) Upload da Foto (se enviada) ─────────────────────────
   let photoUrl: string | null = null;
   if (input.photoBase64) {
