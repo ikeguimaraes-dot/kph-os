@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RoleName } from "@/types/database";
 
@@ -21,7 +22,8 @@ export type CurrentUser = {
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   try {
-    const supabase = await createSupabaseServerClient();
+    const cookieStore = await cookies();
+    const supabase = await createSupabaseServerClient(cookieStore);
     if (!supabase) {
       console.warn("[getCurrentUser] supabase indisponível");
       return null;

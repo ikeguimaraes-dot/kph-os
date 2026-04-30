@@ -11,12 +11,14 @@ import type { Database } from "@/types/database";
  * Server Actions ou Route Handlers — Next levanta erro se tentar). Por isso
  * tratamos a exceção silenciosamente.
  */
-export async function createSupabaseServerClient(): Promise<SupabaseClient<Database> | null> {
+export async function createSupabaseServerClient(
+  resolvedCookieStore?: Awaited<ReturnType<typeof cookies>>
+): Promise<SupabaseClient<Database> | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
 
-  const cookieStore = await cookies();
+  const cookieStore = resolvedCookieStore ?? (await cookies());
 
   return createServerClient<Database>(url, anonKey, {
     cookies: {
