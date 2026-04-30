@@ -43,11 +43,26 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     const errorUrl = new URL("/login", origin);
     errorUrl.searchParams.set("error", error.message);
     return NextResponse.redirect(errorUrl);
+  }
+
+  // Se veio employee_id no redirect, vincula o user ao employee
+  const employeeId = searchParams.get('employee_id')
+  if (employeeId && data?.session?.user?.id) {
+    // Import do createServiceClient dinâmico para não quebrar dependências no top-level
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const service = createServiceClient()
+    if (service) {
+      await service
+        .from('employees')
+        .update({ user_id: data.session.user.id })
+        .eq('id', employeeId)
+        .is('user_id', null) // só vincula se ainda não tem user
+    }
   }
 
   return response;

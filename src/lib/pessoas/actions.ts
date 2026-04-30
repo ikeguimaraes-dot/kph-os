@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
 import { createNotification } from "@/lib/notifications/actions";
 import type { ActionResult } from "@/lib/result";
@@ -1613,5 +1613,47 @@ export async function listTimeRecords(employeeId: string): Promise<TimeRecord[]>
   } catch (e) {
     console.error("[listTimeRecords] exceção:", e);
     return [];
+  }
+}
+
+// ── Onboarding (Vincular Conta) ────────────────────────────────
+
+export async function vincularColaborador(
+  employeeId: string,
+  email: string
+): Promise<ActionResult<void>> {
+  try {
+    const user = await requireUser()
+    const service = createServiceClient()
+    if (!service) return { ok: false, error: 'Supabase indisponível' }
+
+    // 1. Verifica se employee existe e pertence à unidade do user
+    const { data, error: empError } = await service
+      .from('employees')
+      .select('id, nome, user_id, unit_id')
+      .eq('id', employeeId)
+      .single()
+
+    const emp = data as any
+
+    if (empError || !emp) 
+      return { ok: false, error: 'Colaborador não encontrado' }
+    
+    if (emp.user_id) 
+      return { ok: false, error: 'Colaborador já possui conta vinculada' }
+
+    // 2. Envia magic link via Supabase Admin
+    const { error: inviteError } = await service.auth.admin
+      .inviteUserByEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?employee_id=${employeeId}`,
+        data: { employee_id: employeeId }
+      })
+
+    if (inviteError) 
+      return { ok: false, error: inviteError.message }
+
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
   }
 }

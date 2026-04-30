@@ -14,11 +14,12 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowUpDown, Cake, ChevronLeft, ChevronRight, MoreHorizontal,
-  Pencil, UserMinus, Search,
+  Pencil, UserMinus, Search, Link as LinkIcon, CheckCircle2,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -41,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { deactivateEmployee } from "@/lib/pessoas/actions";
+import { deactivateEmployee, vincularColaborador } from "@/lib/pessoas/actions";
 import { ScoreDot } from "@/components/pessoas/ScoreBar";
 import { avatarColor, formatBRL, formatDateBR, initials } from "@/lib/format";
 import type { Employee, EmployeeScore } from "@/types/pessoas";
@@ -97,6 +98,12 @@ export function EmployeeTable({
   const [funcaoFilter, setFuncaoFilter] = useState<string>("__all__");
   const [statusFilter, setStatusFilter] = useState<"todos" | "ativos" | "inativos">("ativos");
   const [search, setSearch] = useState("");
+  
+  // Modal de vínculo
+  const [onboardEmp, setOnboardEmp] = useState<Employee | null>(null);
+  const [onboardEmail, setOnboardEmail] = useState("");
+  const [onboardStatus, setOnboardStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [onboardMsg, setOnboardMsg] = useState("");
 
   const filteredData = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -274,6 +281,52 @@ export function EmployeeTable({
               />
               {ativo ? "Ativo" : "Inativo"}
             </span>
+          );
+        },
+      },
+      {
+        accessorKey: "conta",
+        header: "Conta",
+        cell: ({ row }) => {
+          const e = row.original;
+          if (e.user_id) {
+            return (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#22C55E",
+                }}
+              >
+                <CheckCircle2 size={12} />
+                Conta ativa
+              </span>
+            );
+          }
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              style={{
+                height: 24,
+                fontSize: 10,
+                color: "var(--brand)",
+                borderColor: "var(--brand-soft)",
+              }}
+              onClick={(ev) => {
+                ev.stopPropagation();
+                setOnboardEmp(e);
+                setOnboardEmail(e.email || "");
+                setOnboardStatus("idle");
+                setOnboardMsg("");
+              }}
+            >
+              <LinkIcon size={10} className="mr-1" />
+              Vincular conta
+            </Button>
           );
         },
       },
@@ -509,6 +562,68 @@ export function EmployeeTable({
           </div>
         </div>
       </div>
+
+      {onboardEmp && (
+        <Dialog open={!!onboardEmp} onOpenChange={(o) => !o && setOnboardEmp(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Vincular Conta</DialogTitle>
+              <DialogDescription>
+                Vamos enviar um magic link para o colaborador acessar o KPH OS.
+              </DialogDescription>
+            </DialogHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 8 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 4, display: "block" }}>
+                  E-mail do colaborador
+                </label>
+                <Input
+                  value={onboardEmail}
+                  onChange={(e) => setOnboardEmail(e.target.value)}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              
+              {onboardMsg && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: onboardStatus === "error" ? "var(--destructive)" : "#22C55E",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    background: onboardStatus === "error" ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+                  }}
+                >
+                  {onboardMsg}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <Button variant="ghost" onClick={() => setOnboardEmp(null)}>Cancelar</Button>
+                <Button
+                  disabled={!onboardEmail || onboardStatus === "loading"}
+                  onClick={async () => {
+                    setOnboardStatus("loading");
+                    setOnboardMsg("");
+                    const res = await vincularColaborador(onboardEmp.id, onboardEmail);
+                    if (res.ok) {
+                      setOnboardStatus("success");
+                      setOnboardMsg(`Link enviado para ${onboardEmail}`);
+                      // Poderia fechar após 2s, mas o feedback é bom de ser lido
+                    } else {
+                      setOnboardStatus("error");
+                      setOnboardMsg(res.error || "Erro ao enviar convite.");
+                    }
+                  }}
+                >
+                  {onboardStatus === "loading" ? "Enviando..." : "Enviar magic link"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
