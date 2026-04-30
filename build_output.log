@@ -1,0 +1,88 @@
+
+> kph-os@0.1.0 build
+> next build
+
+▲ Next.js 16.2.4 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 11.1s
+  Running TypeScript ...
+  Finished TypeScript in 13.5s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/9) ...
+  Generating static pages using 11 workers (2/9) 
+  Generating static pages using 11 workers (4/9) 
+  Generating static pages using 11 workers (6/9) 
+✓ Generating static pages using 11 workers (9/9) in 311ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/auth-debug
+├ ƒ /api/holerites/[id]/pdf
+├ ƒ /api/holerites/generate
+├ ƒ /api/ponto/debug
+├ ƒ /api/ponto/punch
+├ ƒ /auth/callback
+├ ƒ /auth/sign-out
+├ ƒ /campanhas
+├ ƒ /cardapio
+├ ƒ /cardapio/[id]
+├ ƒ /cardapio/[id]/editar
+├ ƒ /cardapio/novo
+├ ƒ /cliente
+├ ƒ /cliente/[id]
+├ ƒ /cliente/novo
+├ ƒ /compras
+├ ƒ /compras/[id]
+├ ƒ /compras/fornecedores
+├ ƒ /compras/novo
+├ ƒ /dashboard
+├ ƒ /eventos
+├ ƒ /eventos/[id]
+├ ƒ /eventos/[id]/editar
+├ ƒ /eventos/novo
+├ ƒ /financeiro
+├ ƒ /financeiro/[brand_slug]
+├ ƒ /financeiro/[brand_slug]/cmv
+├ ƒ /financeiro/[brand_slug]/lancamento
+├ ƒ /inteligencia
+├ ƒ /inteligencia/metas
+├ ƒ /inteligencia/metas/[brand_slug]
+├ ƒ /inteligencia/wbr
+├ ○ /login
+├ ƒ /marcas
+├ ƒ /pessoas
+├ ƒ /pessoas/avaliacoes
+├ ƒ /pessoas/avaliacoes/novo/[employeeId]
+├ ƒ /pessoas/avaliacoes/templates
+├ ƒ /pessoas/avaliacoes/templates/[id]
+├ ƒ /pessoas/avaliacoes/templates/novo
+├ ƒ /pessoas/colaboradores
+├ ƒ /pessoas/colaboradores/[id]
+├ ƒ /pessoas/colaboradores/[id]/editar
+├ ƒ /pessoas/colaboradores/novo
+├ ƒ /pessoas/disciplina
+├ ƒ /pessoas/escala
+├ ƒ /pessoas/ferias
+├ ƒ /pessoas/holerites
+├ ƒ /pessoas/holerites/[id]
+├ ƒ /pessoas/importacao
+├ ƒ /pessoas/ponto
+├ ƒ /pessoas/ponto/resumo
+├ ƒ /pessoas/treinamentos
+├ ƒ /pessoas/treinamentos/[id]
+├ ƒ /pessoas/treinamentos/novo
+├ ƒ /ponto
+├ ƒ /recrutamento/candidatos/[id]
+├ ƒ /recrutamento/vagas
+└ ƒ /recrutamento/vagas/[id]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

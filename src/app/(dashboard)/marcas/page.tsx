@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth/server";
 import type { Brand, BrandLink, BrandLinkKind } from "@/types/database";
 
 const KIND_LABEL: Record<BrandLinkKind, string> = {
@@ -14,6 +15,7 @@ const KIND_LABEL: Record<BrandLinkKind, string> = {
 export const dynamic = "force-dynamic";
 
 export default async function MarcasPage() {
+  await requireUser();
   const supabase = await createSupabaseServerClient();
   if (!supabase) redirect("/login");
 

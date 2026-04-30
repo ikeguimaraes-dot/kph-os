@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { requireUser } from "@/lib/auth/server";
 import { getEventDetail } from "../actions";
 import { EventActions } from "@/components/eventos/EventActions";
 import { EventDetail } from "@/components/eventos/EventDetail";
@@ -15,6 +16,7 @@ export default async function EventoViewPage({
 }: {
   params: Params;
 }) {
+  await requireUser();
   const { id } = await params;
   const detail = await getEventDetail(id);
   if (!detail) notFound();

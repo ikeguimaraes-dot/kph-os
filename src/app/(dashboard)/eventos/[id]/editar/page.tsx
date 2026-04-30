@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { requireUser } from "@/lib/auth/server";
 import {
   getEventDetail,
   listAccessibleBrands,
@@ -18,6 +19,7 @@ export default async function EventoEditarPage({
 }: {
   params: Params;
 }) {
+  await requireUser();
   const { id } = await params;
   const [detail, brands] = await Promise.all([
     getEventDetail(id),

@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { requireUser } from "@/lib/auth/server";
 import { Plus } from "lucide-react";
 
 import {
@@ -23,6 +25,7 @@ export default async function EventosPage({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireUser();
   const sp = await searchParams;
 
   const [brands, stats, events] = await Promise.all([
@@ -99,7 +102,9 @@ export default async function EventosPage({
         <Stat label="Realizados" value={stats.realizados} sub="histórico" />
       </div>
 
-      <EventosFilters brands={brands} />
+      <Suspense fallback={null}>
+        <EventosFilters brands={brands} />
+      </Suspense>
 
       <EventosTable events={events} />
     </div>

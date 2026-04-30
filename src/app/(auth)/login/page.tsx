@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,6 @@ export default function LoginPage() {
 }
 
 function LoginInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/";
   const supabase = getBrowserClient();
@@ -73,8 +72,7 @@ function LoginInner() {
       setError(err.message);
       return;
     }
-    router.replace(next);
-    router.refresh();
+    window.location.href = next;
   };
 
   return (
