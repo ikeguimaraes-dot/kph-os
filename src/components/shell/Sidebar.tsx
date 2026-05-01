@@ -11,7 +11,7 @@ import {
   // operacao
   TrendingUp, MapPin, Activity, UserCheck, ClipboardList, BookOpen,
   // compras
-  ShoppingCart, Package, Truck, Building2, FileText, PackageCheck, PieChart, Star,
+  ShoppingCart, Package, Truck, Building2, FileText, PackageCheck, PieChart, Star, Carrot,
   // financeiro
   Wallet, Gauge, ArrowLeftRight, Sheet, CreditCard, Banknote, CheckSquare, RefreshCw, PiggyBank,
   // pessoas
@@ -66,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
     defaultOpen: false,
     items: [
       { href: "/cardapio",               label: "Cardápio",      icon: BookOpen },
+      { href: "/compras/ingredientes",   label: "Ingredientes",      icon: Carrot },
       { href: "/compras",                label: "Pedidos",           icon: ShoppingCart },
       { href: "/compras/estoque",        label: "Estoque",           icon: Package },
       { href: "/compras/logistica",      label: "Logística",         icon: Truck },
