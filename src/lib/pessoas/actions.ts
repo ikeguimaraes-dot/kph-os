@@ -1,5 +1,4 @@
-"use server";
-
+"use server"
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
@@ -1514,9 +1513,13 @@ export async function createVacation(
   try {
     const supabase = await createSupabaseServerClient();
     if (!supabase) return { ok: false, error: "Supabase indisponível" };
+    const payload = {
+      ...input,
+      created_by: input.created_by === "bypass" ? null : input.created_by,
+    };
     const { data, error } = await supabase
       .from(VAC_TABLE)
-      .insert(input as never)
+      .insert(payload as never)
       .select()
       .single();
     if (error || !data) return { ok: false, error: error?.message ?? "Falha" };
@@ -1636,10 +1639,10 @@ export async function vincularColaborador(
 
     const emp = data as any
 
-    if (empError || !emp) 
+    if (empError || !emp)
       return { ok: false, error: 'Colaborador não encontrado' }
-    
-    if (emp.user_id) 
+
+    if (emp.user_id)
       return { ok: false, error: 'Colaborador já possui conta vinculada' }
 
     // 2. Envia magic link via Supabase Admin
@@ -1649,7 +1652,7 @@ export async function vincularColaborador(
         data: { employee_id: employeeId }
       })
 
-    if (inviteError) 
+    if (inviteError)
       return { ok: false, error: inviteError.message }
 
     return { ok: true, data: undefined }
@@ -1657,3 +1660,4 @@ export async function vincularColaborador(
     return { ok: false, error: e.message }
   }
 }
+
