@@ -1,17 +1,38 @@
-import { requireUser } from "@/lib/auth/server"
+import { requireRole } from "@/lib/auth/server";
+import {
+  listDocuments,
+  getDocumentStats,
+  listEmployeesForSelect,
+} from "@/lib/pessoas/document-actions";
+import { getHeadcountBrands } from "@/lib/pessoas/headcount-actions";
+import { DocumentosClient } from "./documentos-client";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  await requireUser()
+type Props = {
+  searchParams: Promise<{ brandId?: string }>;
+};
+
+export default async function DocumentosPage({ searchParams }: Props) {
+  await requireRole(["founder", "cfo", "gm", "pessoas"]);
+
+  const sp = await searchParams;
+  const brandId = sp.brandId ?? "";
+
+  const [docs, stats, employees, brands] = await Promise.all([
+    listDocuments({ brandId: brandId || undefined }),
+    getDocumentStats(brandId || undefined),
+    listEmployeesForSelect(brandId || undefined),
+    getHeadcountBrands(),
+  ]);
+
   return (
-    <div style={{ padding: 40, textAlign: "center" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--text)" }}>
-        Documentos
-      </h1>
-      <p style={{ fontSize: 14, color: "var(--text-3)", marginTop: 8 }}>
-        Em construção. Próxima entrega no roadmap.
-      </p>
-    </div>
-  )
+    <DocumentosClient
+      brandId={brandId}
+      brands={brands}
+      docs={docs}
+      employees={employees}
+      stats={stats}
+    />
+  );
 }

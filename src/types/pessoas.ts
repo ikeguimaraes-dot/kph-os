@@ -693,3 +693,79 @@ export type ImportLogInsert = {
 };
 
 export type ImportLogUpdate = Partial<Omit<ImportLogInsert, "unit_id">>;
+
+// ── Employee Documents (migration 027) ────────────────────────────
+
+export type EmployeeDocumentTipo =
+  | "aso_admissional" | "aso_periodico" | "aso_demissional"
+  | "ctps" | "rg" | "cpf" | "cnh" | "comprovante_residencia"
+  | "titulo_eleitor" | "reservista" | "pis_pasep"
+  | "certidao_nascimento" | "certidao_casamento"
+  | "comprovante_escolaridade" | "certificado_curso"
+  | "epi_recibo" | "uniforme_recibo"
+  | "contrato_trabalho" | "contrato_aditivo"
+  | "rescisao" | "termo_quitacao"
+  | "atestado_medico" | "declaracao" | "outro";
+
+export const DOCUMENT_TIPO_LABELS: Record<EmployeeDocumentTipo, string> = {
+  aso_admissional: "ASO Admissional",
+  aso_periodico: "ASO Periódico",
+  aso_demissional: "ASO Demissional",
+  ctps: "CTPS",
+  rg: "RG",
+  cpf: "CPF",
+  cnh: "CNH",
+  comprovante_residencia: "Comprovante de Residência",
+  titulo_eleitor: "Título de Eleitor",
+  reservista: "Reservista",
+  pis_pasep: "PIS/PASEP",
+  certidao_nascimento: "Certidão de Nascimento",
+  certidao_casamento: "Certidão de Casamento",
+  comprovante_escolaridade: "Comprovante de Escolaridade",
+  certificado_curso: "Certificado de Curso",
+  epi_recibo: "Recibo de EPI",
+  uniforme_recibo: "Recibo de Uniforme",
+  contrato_trabalho: "Contrato de Trabalho",
+  contrato_aditivo: "Aditivo Contratual",
+  rescisao: "Rescisão",
+  termo_quitacao: "Termo de Quitação",
+  atestado_medico: "Atestado Médico",
+  declaracao: "Declaração",
+  outro: "Outro",
+};
+
+export interface EmployeeDocument {
+  id: string;
+  employee_id: string;
+  tipo: EmployeeDocumentTipo;
+  nome: string;
+  descricao: string | null;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  data_emissao: string | null;
+  data_validade: string | null;
+  observacoes: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeDocumentWithEmployee extends EmployeeDocument {
+  employee: { id: string; nome: string; sobrenome: string; funcao: string; unit_id: string } | null;
+}
+
+export type DocStatus = "valido" | "vencendo" | "vencido" | "sem_validade";
+
+export function getDocStatus(data_validade: string | null): DocStatus {
+  if (!data_validade) return "sem_validade";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today);
+  in30.setDate(in30.getDate() + 30);
+  const todayStr = today.toISOString().slice(0, 10);
+  const in30Str = in30.toISOString().slice(0, 10);
+  if (data_validade < todayStr) return "vencido";
+  if (data_validade <= in30Str) return "vencendo";
+  return "valido";
+}

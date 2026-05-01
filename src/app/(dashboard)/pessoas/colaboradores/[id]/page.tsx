@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   Clock,
   CreditCard,
+  FileText,
   GraduationCap,
   IdCard,
   Pencil,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/pessoas/actions";
 import { listRecordsForEmployee } from "@/app/(dashboard)/pessoas/treinamentos/actions";
 import { listReviewsForEmployee } from "@/app/(dashboard)/pessoas/avaliacoes/actions";
+import { listDocuments } from "@/lib/pessoas/document-actions";
 import { requireUser } from "@/lib/auth/server";
 import { avatarColor, initials } from "@/lib/format";
 import { GorjetasTab } from "@/components/pessoas/profile-tabs/GorjetasTab";
@@ -35,6 +37,7 @@ import { HorasExtrasTab } from "@/components/pessoas/profile-tabs/HorasExtrasTab
 import { FeriasTab } from "@/components/pessoas/profile-tabs/FeriasTab";
 import { TreinamentosTab } from "@/components/pessoas/profile-tabs/TreinamentosTab";
 import { AvaliacoesTab } from "@/components/pessoas/profile-tabs/AvaliacoesTab";
+import { DocumentosTab } from "@/components/pessoas/profile-tabs/DocumentosTab";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   CLT: "CLT",
@@ -168,7 +171,7 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
   const employee = await getEmployee(id);
   if (!employee) notFound();
 
-  const [tips, vts, hes, vacations, dependents, trainings, reviews] =
+  const [tips, vts, hes, vacations, dependents, trainings, reviews, employeeDocs] =
     await Promise.all([
       listTipsRecords(id),
       listTransportVouchers(id),
@@ -177,6 +180,7 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
       listDependents(id),
       listRecordsForEmployee(id),
       listReviewsForEmployee(id),
+      listDocuments({ employeeId: id }),
     ]);
 
   const fullName = `${employee.nome} ${employee.sobrenome}`.trim();
@@ -352,6 +356,10 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
             <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />
             Avaliações ({reviews.length})
           </TabsTrigger>
+          <TabsTrigger value="documentos">
+            <FileText className="mr-1.5 h-3.5 w-3.5" />
+            Documentos ({employeeDocs.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados-pessoais">
@@ -491,6 +499,9 @@ export default async function ColaboradorPerfilPage({ params }: Props) {
         </TabsContent>
         <TabsContent value="avaliacoes">
           <AvaliacoesTab employeeId={id} records={reviews} />
+        </TabsContent>
+        <TabsContent value="documentos">
+          <DocumentosTab employeeId={id} records={employeeDocs} />
         </TabsContent>
       </Tabs>
     </div>
