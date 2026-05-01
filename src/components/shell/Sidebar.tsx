@@ -57,7 +57,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/operacao/performance",   label: "Performance",   icon: Activity },
       { href: "/operacao/vendedores",    label: "Vendedores",    icon: UserCheck },
       { href: "/operacao/auditorias",    label: "Auditorias",    icon: ClipboardList },
-      { href: "/cardapio",               label: "Cardápio",      icon: BookOpen },
     ],
   },
   {
@@ -66,6 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: ShoppingCart,
     defaultOpen: false,
     items: [
+      { href: "/cardapio",               label: "Cardápio",      icon: BookOpen },
       { href: "/compras",                label: "Pedidos",           icon: ShoppingCart },
       { href: "/compras/estoque",        label: "Estoque",           icon: Package },
       { href: "/compras/logistica",      label: "Logística",         icon: Truck },
