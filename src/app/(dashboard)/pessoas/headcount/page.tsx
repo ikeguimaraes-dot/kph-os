@@ -1,17 +1,54 @@
-import { requireUser } from "@/lib/auth/server"
+import { requireRole } from "@/lib/auth/server";
+import {
+  getHeadcountStats,
+  getDistribuicaoMarcas,
+  getDistribuicaoFuncoes,
+  getDistribuicaoDepartamentos,
+  getMovimentacoesRecentes,
+  getVagasAbertas,
+  getHeadcountBrands,
+  type Period,
+} from "@/lib/pessoas/headcount-actions";
+import { HeadcountClient } from "./headcount-client";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  await requireUser()
+type Props = {
+  searchParams: Promise<{ period?: string; brandId?: string }>;
+};
+
+export default async function HeadcountPage({ searchParams }: Props) {
+  await requireRole(["founder", "cfo", "gm", "pessoas"]);
+
+  const sp = await searchParams;
+  const period: Period =
+    sp.period === "trimestre" || sp.period === "ano" ? sp.period : "mes";
+  const brandId = sp.brandId ?? "";
+
+  const filters = { period, brandId: brandId || undefined };
+
+  const [stats, marcas, funcoes, departamentos, movimentacoes, vagas, brands] =
+    await Promise.all([
+      getHeadcountStats(filters),
+      getDistribuicaoMarcas(filters),
+      getDistribuicaoFuncoes(filters),
+      getDistribuicaoDepartamentos(filters),
+      getMovimentacoesRecentes(filters),
+      getVagasAbertas({ brandId: brandId || undefined }),
+      getHeadcountBrands(),
+    ]);
+
   return (
-    <div style={{ padding: 40, textAlign: "center" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--text)" }}>
-        Headcount
-      </h1>
-      <p style={{ fontSize: 14, color: "var(--text-3)", marginTop: 8 }}>
-        Em construção. Próxima entrega no roadmap.
-      </p>
-    </div>
-  )
+    <HeadcountClient
+      period={period}
+      brandId={brandId}
+      brands={brands}
+      stats={stats}
+      marcas={marcas}
+      funcoes={funcoes}
+      departamentos={departamentos}
+      movimentacoes={movimentacoes}
+      vagas={vagas}
+    />
+  );
 }
