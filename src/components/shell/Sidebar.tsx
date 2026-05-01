@@ -4,25 +4,39 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  LayoutDashboard, Wallet, Users, BookOpen, ShoppingCart,
-  MessageSquare, BarChart3, Megaphone, CalendarDays,
-  Plane, Briefcase, Building2, Upload, LineChart,
-  TrendingUp, Brain, Handshake, GraduationCap, ClipboardCheck,
-  Target, ChevronDown, ChevronRight, Check, LogOut,
+  // shell
+  ChevronDown, ChevronRight, Check, LogOut,
+  // dashboard
+  LayoutDashboard,
+  // operacao
+  TrendingUp, MapPin, Activity, UserCheck, ClipboardList, BookOpen,
+  // compras
+  ShoppingCart, Package, Truck, Building2, FileText, PackageCheck, PieChart, Star,
+  // financeiro
+  Wallet, Gauge, ArrowLeftRight, Sheet, CreditCard, Banknote, CheckSquare, RefreshCw, PiggyBank,
+  // pessoas
+  Users, User, Briefcase, CalendarDays, Clock, Plane, CalendarX2, Timer,
+  ShieldAlert, Receipt, DollarSign, Bus, GraduationCap, ClipboardCheck,
+  FolderOpen, Upload,
+  // comercial
+  Handshake, MessageSquare, CalendarCheck, Bot, Megaphone, Filter,
+  // marca
+  Bookmark, Info, Globe, Award,
+  // inteligencia
+  Brain, Target, LineChart, Layers, Bug, Map, BarChart3,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth, useUnit } from "@/lib/auth/context";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavGroup = {
-  id: string;                  // chave de localStorage
-  title: string | null;        // null = sempre visível, sem cabeçalho
+  id: string;
+  title: string | null;
   icon: LucideIcon | null;
   items: NavItem[];
   defaultOpen: boolean;
 };
 
-// Estrutura por grupos. Ordem dos grupos importa.
 const NAV_GROUPS: NavGroup[] = [
   {
     id: "home",
@@ -34,15 +48,48 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: "operacoes",
-    title: "Operações",
+    id: "operacao",
+    title: "Operação",
     icon: TrendingUp,
-    defaultOpen: true,
+    defaultOpen: false,
     items: [
-      { href: "/financeiro", label: "Financeiro", icon: Wallet },
-      { href: "/cardapio",   label: "Cardápio",   icon: BookOpen },
-      { href: "/compras",    label: "Compras",    icon: ShoppingCart },
-      { href: "/eventos",    label: "Eventos",    icon: CalendarDays },
+      { href: "/operacao/mapa",          label: "Mapa da Casa",  icon: MapPin },
+      { href: "/operacao/performance",   label: "Performance",   icon: Activity },
+      { href: "/operacao/vendedores",    label: "Vendedores",    icon: UserCheck },
+      { href: "/operacao/auditorias",    label: "Auditorias",    icon: ClipboardList },
+      { href: "/cardapio",               label: "Cardápio",      icon: BookOpen },
+    ],
+  },
+  {
+    id: "compras",
+    title: "Compras",
+    icon: ShoppingCart,
+    defaultOpen: false,
+    items: [
+      { href: "/compras",                label: "Pedidos",           icon: ShoppingCart },
+      { href: "/compras/estoque",        label: "Estoque",           icon: Package },
+      { href: "/compras/logistica",      label: "Logística",         icon: Truck },
+      { href: "/compras/fornecedores",   label: "Fornecedores",      icon: Building2 },
+      { href: "/compras/cotacoes",       label: "Cotações",          icon: FileText },
+      { href: "/compras/recebimento",    label: "Recebimento",       icon: PackageCheck },
+      { href: "/compras/analise",        label: "Análise CMV",       icon: PieChart },
+      { href: "/compras/feedback",       label: "Feedback Produto",  icon: Star },
+    ],
+  },
+  {
+    id: "financeiro",
+    title: "Financeiro",
+    icon: Wallet,
+    defaultOpen: false,
+    items: [
+      { href: "/financeiro",              label: "Cockpit",           icon: Gauge },
+      { href: "/financeiro/fluxo",        label: "Fluxo de Caixa",   icon: ArrowLeftRight },
+      { href: "/financeiro/dre",          label: "DRE",               icon: Sheet },
+      { href: "/financeiro/pagar",        label: "Contas a Pagar",   icon: CreditCard },
+      { href: "/financeiro/receber",      label: "Contas a Receber", icon: Banknote },
+      { href: "/financeiro/aprovacoes",   label: "Aprovações",        icon: CheckSquare },
+      { href: "/financeiro/conciliacao",  label: "Conciliação",       icon: RefreshCw },
+      { href: "/financeiro/orcamento",    label: "Orçamento",         icon: PiggyBank },
     ],
   },
   {
@@ -51,11 +98,22 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Users,
     defaultOpen: true,
     items: [
-      { href: "/pessoas/colaboradores", label: "Pessoas",      icon: Users },
-      { href: "/pessoas/ferias",        label: "Férias",       icon: Plane },
-      { href: "/pessoas/treinamentos",  label: "Treinamentos", icon: GraduationCap },
-      { href: "/pessoas/avaliacoes",    label: "Avaliações",   icon: ClipboardCheck },
-      { href: "/pessoas/importacao",    label: "Importação",   icon: Upload },
+      { href: "/pessoas/headcount",       label: "Headcount",         icon: BarChart3 },
+      { href: "/pessoas/colaboradores",   label: "Colaboradores",     icon: User },
+      { href: "/recrutamento/vagas",      label: "Recrutamento",      icon: Briefcase },
+      { href: "/pessoas/escala",          label: "Escala",            icon: CalendarDays },
+      { href: "/pessoas/ponto",           label: "Ponto",             icon: Clock },
+      { href: "/pessoas/ferias",          label: "Férias",            icon: Plane },
+      { href: "/pessoas/faltas",          label: "Faltas",            icon: CalendarX2 },
+      { href: "/pessoas/horas-extras",    label: "Horas Extras",      icon: Timer },
+      { href: "/pessoas/disciplina",      label: "Disciplina & Score", icon: ShieldAlert },
+      { href: "/pessoas/holerites",       label: "Holerites",         icon: Receipt },
+      { href: "/pessoas/gorjetas",        label: "Gorjetas",          icon: DollarSign },
+      { href: "/pessoas/vale-transporte", label: "Vale Transporte",   icon: Bus },
+      { href: "/pessoas/treinamentos",    label: "Treinamentos",      icon: GraduationCap },
+      { href: "/pessoas/avaliacoes",      label: "Avaliações",        icon: ClipboardCheck },
+      { href: "/pessoas/documentos",      label: "Documentos",        icon: FolderOpen },
+      { href: "/pessoas/importacao",      label: "Importar Dados",    icon: Upload },
     ],
   },
   {
@@ -64,9 +122,25 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Handshake,
     defaultOpen: false,
     items: [
-      { href: "/cliente",            label: "Cliente",      icon: MessageSquare },
-      { href: "/campanhas",          label: "Campanhas",    icon: Megaphone },
-      { href: "/recrutamento/vagas", label: "Recrutamento", icon: Briefcase },
+      { href: "/cliente",               label: "CRM Clientes", icon: MessageSquare },
+      { href: "/comercial/reservas",    label: "Reservas",     icon: CalendarCheck },
+      { href: "/eventos",               label: "Eventos / OS", icon: CalendarDays },
+      { href: "/comercial/serena",      label: "Serena",       icon: Bot },
+      { href: "/campanhas",             label: "Campanhas",    icon: Megaphone },
+      { href: "/comercial/funil",       label: "Funil",        icon: Filter },
+    ],
+  },
+  {
+    id: "marca",
+    title: "Marca",
+    icon: Bookmark,
+    defaultOpen: false,
+    items: [
+      { href: "/marcas",              label: "Diretório",    icon: Building2 },
+      { href: "/marca/brandbook",     label: "BrandBook",    icon: BookOpen },
+      { href: "/marca/quem-somos",    label: "Quem Somos",   icon: Info },
+      { href: "/marca/canais",        label: "Site & Canais", icon: Globe },
+      { href: "/marca/reputacao",     label: "Reputação",    icon: Award },
     ],
   },
   {
@@ -75,10 +149,12 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Brain,
     defaultOpen: false,
     items: [
-      { href: "/inteligencia",       label: "Inteligência", icon: BarChart3 },
-      { href: "/inteligencia/wbr",   label: "WBR",          icon: LineChart },
-      { href: "/inteligencia/metas", label: "Metas",        icon: Target },
-      { href: "/marcas",             label: "Marcas",       icon: Building2 },
+      { href: "/inteligencia/metas",    label: "Metas",          icon: Target },
+      { href: "/inteligencia/wbr",      label: "WBR",            icon: LineChart },
+      { href: "/inteligencia/cross",    label: "Cross-módulo",   icon: Layers },
+      { href: "/inteligencia/adocao",   label: "Adoção",         icon: Activity },
+      { href: "/inteligencia/feedback", label: "Bugs & Feedback", icon: Bug },
+      { href: "/inteligencia/roadmap",  label: "Roadmap",        icon: Map },
     ],
   },
 ];
@@ -111,7 +187,6 @@ export function Sidebar() {
     return () => window.removeEventListener("kph:toggleSidebar", onToggle);
   }, []);
 
-  // Fecha sidebar ao navegar no mobile
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
@@ -127,7 +202,7 @@ export function Sidebar() {
 
   return (
     <>
-      <div 
+      <div
         className={`shell-backdrop ${mobileOpen ? "open" : ""}`}
         onClick={() => setMobileOpen(false)}
       />
@@ -139,157 +214,153 @@ export function Sidebar() {
           display: "flex", flexDirection: "column",
         }}
       >
-      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
-          KPH <span style={{ color: "var(--brand)" }}>OS</span>
-        </div>
-        <div
-          style={{
-            fontSize: 10, color: "var(--text-3)", marginTop: 2,
-            letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 600,
-          }}
-        >
-          Operations
-        </div>
-      </div>
-
-      <div style={{ padding: "12px 16px" }}>
-        <div ref={ref} style={{ position: "relative" }}>
-          <button
-            onClick={() => setOpen((v) => !v)}
-            disabled={units.length === 0}
+        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--sidebar-border)" }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
+            KPH <span style={{ color: "var(--brand)" }}>OS</span>
+          </div>
+          <div
             style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10,
-              padding: "9px 12px", color: "var(--text)", fontSize: 13, fontWeight: 600,
-              cursor: units.length ? "pointer" : "default",
-              transition: "border-color var(--t)",
+              fontSize: 10, color: "var(--text-3)", marginTop: 2,
+              letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 600,
             }}
           >
-            <span
+            Operations
+          </div>
+        </div>
+
+        <div style={{ padding: "12px 16px" }}>
+          <div ref={ref} style={{ position: "relative" }}>
+            <button
+              onClick={() => setOpen((v) => !v)}
+              disabled={units.length === 0}
               style={{
-                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 0,
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10,
+                padding: "9px 12px", color: "var(--text)", fontSize: 13, fontWeight: 600,
+                cursor: units.length ? "pointer" : "default",
+                transition: "border-color var(--t)",
               }}
             >
-              <span style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 700, letterSpacing: 0.8 }}>
-                UNIDADE
-              </span>
               <span
                 style={{
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160,
+                  display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 0,
                 }}
               >
-                {unit?.name ?? (units.length ? "Selecionar…" : "Sem acesso")}
+                <span style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 700, letterSpacing: 0.8 }}>
+                  UNIDADE
+                </span>
+                <span
+                  style={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160,
+                  }}
+                >
+                  {unit?.name ?? (units.length ? "Selecionar…" : "Sem acesso")}
+                </span>
               </span>
-            </span>
-            <ChevronDown
-              size={14}
-              style={{
-                color: "var(--text-3)",
-                transform: open ? "rotate(180deg)" : "none",
-                transition: "transform var(--t)",
-              }}
-            />
-          </button>
-          {open && units.length > 0 && (
-            <div
-              style={{
-                position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
-                background: "var(--surface-2)", border: "1px solid var(--border-strong)",
-                borderRadius: 10, padding: 4, boxShadow: "var(--shadow-lg)",
-              }}
-            >
-              {units.map((u) => {
-                const active = u.id === unit?.id;
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                      setUnit(u.id);
-                      setOpen(false);
-                    }}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                      gap: 8, padding: "9px 10px",
-                      background: active ? "var(--surface-3)" : "transparent",
-                      border: "none", borderRadius: 6, color: "var(--text)",
-                      fontSize: 13, fontWeight: 500, cursor: "pointer",
-                      textAlign: "left", transition: "background var(--t)",
-                    }}
-                  >
-                    <span>{u.name}</span>
-                    {active && <Check size={14} style={{ color: "var(--brand)" }} />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <SidebarNav pathname={pathname} />
-
-
-      <div
-        style={{
-          padding: "12px 14px", borderTop: "1px solid var(--sidebar-border)",
-          display: "flex", alignItems: "center", gap: 10,
-        }}
-      >
-        <div style={{ position: "relative" }}>
-          <div
-            style={{
-              width: 32, height: 32, borderRadius: 99, background: "var(--brand-soft)",
-              color: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 700, fontSize: 12,
-            }}
-          >
-            {initials}
-          </div>
-          <span
-            style={{
-              position: "absolute", right: -1, bottom: -1,
-              width: 10, height: 10, borderRadius: 99,
-              background: "#22C55E", border: "2px solid var(--sidebar)",
-            }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 12, fontWeight: 600, color: "var(--text)",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}
-          >
-            {emailShort}
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text-3)" }}>
-            {role}
+              <ChevronDown
+                size={14}
+                style={{
+                  color: "var(--text-3)",
+                  transform: open ? "rotate(180deg)" : "none",
+                  transition: "transform var(--t)",
+                }}
+              />
+            </button>
+            {open && units.length > 0 && (
+              <div
+                style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50,
+                  background: "var(--surface-2)", border: "1px solid var(--border-strong)",
+                  borderRadius: 10, padding: 4, boxShadow: "var(--shadow-lg)",
+                }}
+              >
+                {units.map((u) => {
+                  const active = u.id === unit?.id;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => {
+                        setUnit(u.id);
+                        setOpen(false);
+                      }}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        gap: 8, padding: "9px 10px",
+                        background: active ? "var(--surface-3)" : "transparent",
+                        border: "none", borderRadius: 6, color: "var(--text)",
+                        fontSize: 13, fontWeight: 500, cursor: "pointer",
+                        textAlign: "left", transition: "background var(--t)",
+                      }}
+                    >
+                      <span>{u.name}</span>
+                      {active && <Check size={14} style={{ color: "var(--brand)" }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-        <Link
-          href="/auth/sign-out"
-          title="Sair"
+
+        <SidebarNav pathname={pathname} />
+
+        <div
           style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 28, height: 28, borderRadius: 6,
-            color: "var(--text-3)", textDecoration: "none",
-            transition: "color var(--t), background var(--t)",
+            padding: "12px 14px", borderTop: "1px solid var(--sidebar-border)",
+            display: "flex", alignItems: "center", gap: 10,
           }}
         >
-          <LogOut size={14} />
-        </Link>
-      </div>
-    </aside>
+          <div style={{ position: "relative" }}>
+            <div
+              style={{
+                width: 32, height: 32, borderRadius: 99, background: "var(--brand-soft)",
+                color: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 700, fontSize: 12,
+              }}
+            >
+              {initials}
+            </div>
+            <span
+              style={{
+                position: "absolute", right: -1, bottom: -1,
+                width: 10, height: 10, borderRadius: 99,
+                background: "#22C55E", border: "2px solid var(--sidebar)",
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 12, fontWeight: 600, color: "var(--text)",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}
+            >
+              {emailShort}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-3)" }}>
+              {role}
+            </div>
+          </div>
+          <Link
+            href="/auth/sign-out"
+            title="Sair"
+            style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              width: 28, height: 28, borderRadius: 6,
+              color: "var(--text-3)", textDecoration: "none",
+              transition: "color var(--t), background var(--t)",
+            }}
+          >
+            <LogOut size={14} />
+          </Link>
+        </div>
+      </aside>
     </>
   );
 }
 
 // ── Sub: nav com grupos colapsáveis ────────────────────────────
 function SidebarNav({ pathname }: { pathname: string }) {
-  // Match mais específico entre TODOS os items (mantém o comportamento antigo
-  // de pintar apenas o item mais específico — ex: /pessoas/ferias ativa
-  // "Férias" e não "Pessoas").
   const activeHref = useMemo(() => {
     let bestHref: string | null = null;
     let bestLen = -1;
@@ -303,14 +374,11 @@ function SidebarNav({ pathname }: { pathname: string }) {
     return bestHref;
   }, [pathname]);
 
-  // Grupo do item ativo, pra forçar expansão.
   const activeGroupId = useMemo(() => {
     if (!activeHref) return null;
     return ALL_NAV_ITEMS.find((it) => it.href === activeHref)?.groupId ?? null;
   }, [activeHref]);
 
-  // Estado de collapsed por grupo, persistido em localStorage.
-  // Hidrata no primeiro render — antes disso usa defaultOpen.
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => {
     const m: Record<string, boolean> = {};
     for (const g of NAV_GROUPS) m[g.id] = g.defaultOpen;
@@ -333,9 +401,6 @@ function SidebarNav({ pathname }: { pathname: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sempre que o grupo do item ativo muda, força ele aberto (UX: navegar
-  // num item sempre revela seu grupo). Não persiste pra não sobrescrever
-  // a vontade do user de manter outros grupos colapsados.
   useEffect(() => {
     if (!activeGroupId) return;
     setOpenMap((prev) => (prev[activeGroupId] ? prev : { ...prev, [activeGroupId]: true }));
