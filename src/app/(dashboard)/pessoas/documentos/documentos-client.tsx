@@ -293,7 +293,9 @@ export function DocumentosClient({ brandId, brands, docs, employees, stats }: Pr
         {/* Brand */}
         <Select value={brandId || "__all__"} onValueChange={(v) => navigate(v === "__all__" ? "" : (v ?? ""))}>
           <SelectTrigger style={{ width: 180, fontSize: 13 }}>
-            <SelectValue placeholder="Todas as marcas" />
+            <SelectValue>
+              {brandId ? (brands.find((b) => b.id === brandId)?.name ?? "—") : "Todas as marcas"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todas as marcas</SelectItem>
@@ -324,7 +326,9 @@ export function DocumentosClient({ brandId, brands, docs, employees, stats }: Pr
         {/* Tipo */}
         <Select value={tipoFilter || "__all__"} onValueChange={(v) => setTipoFilter(v === "__all__" ? "" : (v as EmployeeDocumentTipo))}>
           <SelectTrigger style={{ width: 200, fontSize: 13 }}>
-            <SelectValue placeholder="Tipo de documento" />
+            <SelectValue>
+              {tipoFilter ? DOCUMENT_TIPO_LABELS[tipoFilter] : "Todos os tipos"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos os tipos</SelectItem>
@@ -337,7 +341,9 @@ export function DocumentosClient({ brandId, brands, docs, employees, stats }: Pr
         {/* Status */}
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
           <SelectTrigger style={{ width: 160, fontSize: 13 }}>
-            <SelectValue />
+            <SelectValue>
+              {{ todos: "Todos os status", validos: "Válidos", vencendo_30d: "Vencendo em 30d", vencidos: "Vencidos" }[statusFilter]}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos os status</SelectItem>
