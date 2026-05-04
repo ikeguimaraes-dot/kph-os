@@ -77,7 +77,6 @@ function fmtNum(n: number): string {
 
 type RowDraft = {
   id?: string;
-  ingredient_id: string | null;
   insumo: string;
   unidade: string;
   quantidade: string;
@@ -86,13 +85,12 @@ type RowDraft = {
 };
 
 function emptyDraft(): RowDraft {
-  return { ingredient_id: null, insumo: "", unidade: "", quantidade: "", perda_pct: "", custo_unitario: "" };
+  return { insumo: "", unidade: "", quantidade: "", perda_pct: "", custo_unitario: "" };
 }
 
 function rowFromItem(r: RecipeItem): RowDraft {
   return {
     id: r.id,
-    ingredient_id: r.ingredient_id,
     insumo: r.insumo,
     unidade: r.unidade ?? "",
     quantidade: String(r.quantidade),
@@ -193,22 +191,25 @@ function IngredientSearch({
 
 function EditRow({
   draft,
+  initialIngredientId = null,
   menuItemId,
   onSave,
   onCancel,
 }: {
   draft: RowDraft;
+  initialIngredientId?: string | null;
   menuItemId: string;
   onSave: (saved: RecipeItem) => void;
   onCancel: () => void;
 }) {
   const [d, setD] = useState<RowDraft>(draft);
+  // ingredient_id lives in its own state — completely isolated from the text
+  // input so that onChange on IngredientSearch can never overwrite it.
+  const [selectedIngredientId, setSelectedIngredientId] = useState<string | null>(
+    initialIngredientId,
+  );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Prevents the onChange callback from resetting ingredient_id immediately
-  // after handleSelectIngredient sets it (React may fire a synthetic change
-  // event when it reconciles the controlled Input to the new value).
-  const justSelectedRef = useRef(false);
 
   const qtd = parseFloat(d.quantidade.replace(",", ".")) || 0;
   const custo = parseFloat(d.custo_unitario.replace(",", ".")) || 0;
@@ -220,10 +221,9 @@ function EditRow({
   }
 
   function handleSelectIngredient(ing: Ingredient) {
-    justSelectedRef.current = true;
+    setSelectedIngredientId(ing.id);
     setD((p) => ({
       ...p,
-      ingredient_id: ing.id,
       insumo: ing.nome,
       custo_unitario: ing.custo_padrao,
       unidade: ing.unidade_padrao,
@@ -231,15 +231,20 @@ function EditRow({
     setErr(null);
   }
 
+  function handleInsumoChange(value: string) {
+    setSelectedIngredientId(null);
+    setD((p) => ({ ...p, insumo: value }));
+  }
+
   async function save() {
-    console.log("[save] called — insumo:", JSON.stringify(d.insumo), "ingredient_id:", d.ingredient_id);
+    console.log("[save] insumo:", JSON.stringify(d.insumo), "selectedIngredientId:", selectedIngredientId);
     if (!d.insumo.trim()) { setErr("Insumo obrigatório"); return; }
     setSaving(true);
     try {
       const r = await upsertRecipeItem({
         id: d.id,
         menu_item_id: menuItemId,
-        ingredient_id: d.ingredient_id ?? null,
+        ingredient_id: selectedIngredientId,
         insumo: d.insumo.trim(),
         unidade: d.unidade || null,
         quantidade: qtd,
@@ -283,10 +288,7 @@ function EditRow({
         <TableCell>
           <IngredientSearch
             value={d.insumo}
-            onChange={(v) => {
-              if (justSelectedRef.current) { justSelectedRef.current = false; return; }
-              setD((p) => ({ ...p, insumo: v, ingredient_id: null }));
-            }}
+            onChange={handleInsumoChange}
             onSelect={handleSelectIngredient}
           />
         </TableCell>
@@ -512,6 +514,7 @@ export function DetalheFichaClient({
                 <EditRow
                   key={r.id}
                   draft={rowFromItem(r)}
+                  initialIngredientId={r.ingredient_id}
                   menuItemId={item.id}
                   onSave={handleRowSaved}
                   onCancel={() => setEditingId(null)}
