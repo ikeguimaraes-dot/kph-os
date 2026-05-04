@@ -20,7 +20,7 @@ const statusLabel: Record<string, string> = {
 }
 
 export default async function OrquestradorPage() {
-  const runs = await listRuns()
+  const runs = (await listRuns()) as any[]
   const pendentes = runs.filter(r => r.status === 'awaiting_approval')
   const historico = runs.filter(r => r.status !== 'awaiting_approval')
 
