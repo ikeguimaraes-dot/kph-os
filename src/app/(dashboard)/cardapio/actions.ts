@@ -242,6 +242,8 @@ export async function upsertRecipeItem(
         unidade: rest.unidade ?? null,
         quantidade: rest.quantidade,
         custo_unitario: rest.custo_unitario,
+        ingredient_id: rest.ingredient_id ?? null,
+        perda_pct: rest.perda_pct ?? null,
       };
       q = supabase
         .from("recipe_items")

@@ -30,6 +30,12 @@ import {
   deleteRecipeItem,
   createRecipeNote,
 } from "@/app/(dashboard)/cardapio/actions";
+import { searchIngredientsForRecipe } from "@/lib/compras/ingredient-actions";
+import type { Ingredient } from "@/types/compras-ingredientes";
+
+// ── constants ─────────────────────────────────────────────────
+
+const UNIDADES = ["", "kg", "g", "l", "ml", "un", "cx", "fardo", "duzia"] as const;
 
 // ── helpers ──────────────────────────────────────────────────
 
@@ -67,29 +73,120 @@ function fmtNum(n: number): string {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
 
-// ── Row editing state ─────────────────────────────────────────
+// ── Row state ─────────────────────────────────────────────────
 
 type RowDraft = {
   id?: string;
+  ingredient_id: string | null;
   insumo: string;
   unidade: string;
   quantidade: string;
+  perda_pct: string;
   custo_unitario: string;
 };
 
-function emptyDraft(menuItemId?: string): RowDraft {
-  void menuItemId;
-  return { insumo: "", unidade: "", quantidade: "", custo_unitario: "" };
+function emptyDraft(): RowDraft {
+  return { ingredient_id: null, insumo: "", unidade: "", quantidade: "", perda_pct: "", custo_unitario: "" };
 }
 
 function rowFromItem(r: RecipeItem): RowDraft {
   return {
     id: r.id,
+    ingredient_id: r.ingredient_id,
     insumo: r.insumo,
     unidade: r.unidade ?? "",
     quantidade: String(r.quantidade),
+    perda_pct: r.perda_pct != null && Number(r.perda_pct) > 0 ? String(Number(r.perda_pct)) : "",
     custo_unitario: String(r.custo_unitario),
   };
+}
+
+// ── Ingredient autocomplete ───────────────────────────────────
+
+function IngredientSearch({
+  value,
+  onChange,
+  onSelect,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSelect: (ing: Ingredient) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<Ingredient[]>([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleChange(val: string) {
+    onChange(val);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (val.trim().length >= 2) {
+      timerRef.current = setTimeout(async () => {
+        const results = await searchIngredientsForRecipe(val);
+        setSuggestions(results);
+        setOpen(results.length > 0);
+      }, 220);
+    } else {
+      setSuggestions([]);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <Input
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => setTimeout(() => setOpen(false), 160)}
+        placeholder="Ingrediente ou insumo*"
+        style={{ height: 30, fontSize: 12 }}
+        autoFocus
+      />
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 2px)",
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+            maxHeight: 200,
+            overflowY: "auto",
+          }}
+        >
+          {suggestions.map((ing) => (
+            <button
+              key={ing.id}
+              type="button"
+              onMouseDown={() => { onSelect(ing); setOpen(false); }}
+              style={{
+                display: "flex",
+                width: "100%",
+                textAlign: "left",
+                padding: "7px 12px",
+                fontSize: 12,
+                color: "var(--text)",
+                background: "transparent",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
+                cursor: "pointer",
+                gap: 8,
+                alignItems: "baseline",
+              }}
+            >
+              <span style={{ fontWeight: 600 }}>{ing.nome}</span>
+              <span style={{ color: "var(--text-3)", fontSize: 11 }}>
+                {ing.unidade_padrao} · {formatBRL(Number(ing.custo_padrao))}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── EditRow ───────────────────────────────────────────────────
@@ -108,21 +205,38 @@ function EditRow({
   const [d, setD] = useState<RowDraft>(draft);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const insumoRef = useRef<HTMLInputElement>(null);
 
   const qtd = parseFloat(d.quantidade.replace(",", ".")) || 0;
   const custo = parseFloat(d.custo_unitario.replace(",", ".")) || 0;
   const preview = qtd * custo;
 
+  function set<K extends keyof RowDraft>(key: K, value: RowDraft[K]) {
+    setD((p) => ({ ...p, [key]: value }));
+    setErr(null);
+  }
+
+  function handleSelectIngredient(ing: Ingredient) {
+    setD((p) => ({
+      ...p,
+      ingredient_id: ing.id,
+      insumo: ing.nome,
+      custo_unitario: ing.custo_padrao,
+      unidade: ing.unidade_padrao,
+    }));
+    setErr(null);
+  }
+
   async function save() {
-    if (!d.insumo.trim()) { setErr("Insumo obrigatório"); insumoRef.current?.focus(); return; }
+    if (!d.insumo.trim()) { setErr("Insumo obrigatório"); return; }
     setSaving(true);
     const r = await upsertRecipeItem({
       id: d.id,
       menu_item_id: menuItemId,
+      ingredient_id: d.ingredient_id ?? null,
       insumo: d.insumo.trim(),
-      unidade: d.unidade.trim() || null,
+      unidade: d.unidade || null,
       quantidade: qtd,
+      perda_pct: d.perda_pct ? parseFloat(d.perda_pct.replace(",", ".")) : null,
       custo_unitario: custo,
     });
     setSaving(false);
@@ -130,37 +244,63 @@ function EditRow({
     onSave(r.data);
   }
 
-  function field(
-    key: keyof RowDraft,
+  const numInput = (
+    key: "quantidade" | "custo_unitario" | "perda_pct",
     placeholder: string,
-    align: "left" | "right" = "left",
     width?: number,
-  ) {
-    return (
+    suffix?: string,
+  ) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
       <Input
-        ref={key === "insumo" ? insumoRef : undefined}
-        value={d[key]}
+        value={d[key] as string}
         placeholder={placeholder}
-        onChange={(e) => { setD((p) => ({ ...p, [key]: e.target.value })); setErr(null); }}
+        onChange={(e) => set(key, e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") onCancel(); }}
         style={{
           height: 30,
           fontSize: 12,
-          textAlign: align,
-          width: width ? width : undefined,
-          fontVariantNumeric: align === "right" ? "tabular-nums" : undefined,
+          textAlign: "right",
+          width: width ?? undefined,
+          fontVariantNumeric: "tabular-nums",
         }}
       />
-    );
-  }
+      {suffix && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{suffix}</span>}
+    </div>
+  );
 
   return (
     <>
       <TableRow style={{ background: "rgba(99,102,241,0.06)" }}>
-        <TableCell>{field("insumo", "Insumo*")}</TableCell>
-        <TableCell>{field("unidade", "un.", "left", 70)}</TableCell>
-        <TableCell style={{ textAlign: "right" }}>{field("quantidade", "0", "right", 90)}</TableCell>
-        <TableCell style={{ textAlign: "right" }}>{field("custo_unitario", "0,0000", "right", 100)}</TableCell>
+        <TableCell>
+          <IngredientSearch
+            value={d.insumo}
+            onChange={(v) => setD((p) => ({ ...p, insumo: v, ingredient_id: null }))}
+            onSelect={handleSelectIngredient}
+          />
+        </TableCell>
+        <TableCell>
+          <select
+            value={d.unidade}
+            onChange={(e) => set("unidade", e.target.value)}
+            style={{
+              height: 30,
+              fontSize: 12,
+              padding: "0 6px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              color: "var(--text)",
+              width: 80,
+            }}
+          >
+            {UNIDADES.map((u) => (
+              <option key={u} value={u}>{u === "" ? "—" : u}</option>
+            ))}
+          </select>
+        </TableCell>
+        <TableCell style={{ textAlign: "right" }}>{numInput("quantidade", "0", 80)}</TableCell>
+        <TableCell style={{ textAlign: "right" }}>{numInput("perda_pct", "0", 70, "%")}</TableCell>
+        <TableCell style={{ textAlign: "right" }}>{numInput("custo_unitario", "0,0000", 100)}</TableCell>
         <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 12, color: "var(--text-2)" }}>
           {preview > 0 ? formatBRL(preview) : "—"}
         </TableCell>
@@ -177,7 +317,7 @@ function EditRow({
       </TableRow>
       {err && (
         <TableRow style={{ background: "rgba(239,68,68,0.06)" }}>
-          <TableCell colSpan={6} style={{ padding: "6px 12px", fontSize: 11, color: "#B91C1C" }}>
+          <TableCell colSpan={7} style={{ padding: "6px 12px", fontSize: 11, color: "#B91C1C" }}>
             {err}
           </TableCell>
         </TableRow>
@@ -246,16 +386,9 @@ export function DetalheFichaClient({
   }
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div style={{ maxWidth: 960 }}>
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 24 }}>
         <button
           onClick={() => router.push("/cardapio")}
           style={{
@@ -276,22 +409,8 @@ export function DetalheFichaClient({
           <ArrowLeft size={16} />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: 20,
-                fontWeight: 700,
-                color: "var(--text)",
-                margin: 0,
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", margin: 0 }}>
               {item.nome}
             </h1>
             <CmvBadge pct={cmvPct} />
@@ -311,23 +430,12 @@ export function DetalheFichaClient({
               Editar item
             </a>
           </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: "var(--text-3)",
-              marginTop: 4,
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
             <span>{item.categoria}</span>
             <span>Preço de venda: {formatBRL(item.preco_venda)}</span>
             <span>
               Custo total:{" "}
-              <strong style={{ color: "var(--text-2)" }}>
-                {formatBRL(custoTotal)}
-              </strong>
+              <strong style={{ color: "var(--text-2)" }}>{formatBRL(custoTotal)}</strong>
             </span>
           </div>
         </div>
@@ -352,16 +460,7 @@ export function DetalheFichaClient({
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 13,
-              fontWeight: 700,
-              color: "var(--text)",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
             <ChefHat size={15} />
             Ficha Técnica
           </div>
@@ -383,6 +482,7 @@ export function DetalheFichaClient({
               <TableHead>Insumo</TableHead>
               <TableHead>Unidade</TableHead>
               <TableHead style={{ textAlign: "right" }}>Qtd</TableHead>
+              <TableHead style={{ textAlign: "right" }}>Perda%</TableHead>
               <TableHead style={{ textAlign: "right" }}>Custo unit.</TableHead>
               <TableHead style={{ textAlign: "right" }}>Custo total</TableHead>
               <TableHead></TableHead>
@@ -404,33 +504,16 @@ export function DetalheFichaClient({
                   <TableCell style={{ fontSize: 12, color: "var(--text-3)" }}>
                     {r.unidade ?? "—"}
                   </TableCell>
-                  <TableCell
-                    style={{
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontSize: 12,
-                    }}
-                  >
+                  <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 12 }}>
                     {fmtNum(r.quantidade)}
                   </TableCell>
-                  <TableCell
-                    style={{
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontSize: 12,
-                      color: "var(--text-2)",
-                    }}
-                  >
+                  <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 12, color: "var(--text-3)" }}>
+                    {Number(r.perda_pct) > 0 ? `${Number(r.perda_pct).toFixed(1)}%` : "—"}
+                  </TableCell>
+                  <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 12, color: "var(--text-2)" }}>
                     {formatBRL(r.custo_unitario)}
                   </TableCell>
-                  <TableCell
-                    style={{
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
+                  <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 12, fontWeight: 600 }}>
                     {formatBRL(r.custo_total)}
                   </TableCell>
                   <TableCell style={{ textAlign: "right" }}>
@@ -492,7 +575,7 @@ export function DetalheFichaClient({
 
             {rows.length === 0 && editingId === null && (
               <TableRow>
-                <TableCell colSpan={6} style={{ textAlign: "center", padding: "32px 16px" }}>
+                <TableCell colSpan={7} style={{ textAlign: "center", padding: "32px 16px" }}>
                   <div style={{ fontSize: 13, color: "var(--text-3)" }}>
                     Nenhum insumo cadastrado. Adicione o primeiro.
                   </div>
@@ -500,16 +583,10 @@ export function DetalheFichaClient({
               </TableRow>
             )}
 
-            {/* Totals row */}
             {rows.length > 0 && (
-              <TableRow
-                style={{
-                  background: "var(--surface-2)",
-                  fontWeight: 700,
-                }}
-              >
+              <TableRow style={{ background: "var(--surface-2)", fontWeight: 700 }}>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
@@ -520,14 +597,7 @@ export function DetalheFichaClient({
                 >
                   Total
                 </TableCell>
-                <TableCell
-                  style={{
-                    textAlign: "right",
-                    fontVariantNumeric: "tabular-nums",
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
+                <TableCell style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, fontWeight: 700 }}>
                   {formatBRL(custoTotal)}
                 </TableCell>
                 <TableCell />

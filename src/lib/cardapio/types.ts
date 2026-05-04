@@ -69,6 +69,8 @@ export type RecipeItem = {
   quantidade: number;
   custo_unitario: number;
   custo_total: number; // GENERATED ALWAYS AS (quantidade * custo_unitario)
+  ingredient_id: string | null;
+  perda_pct: number | null;
   created_at: string;
 };
 
@@ -79,6 +81,8 @@ export type RecipeItemInsert = {
   unidade?: string | null;
   quantidade: number;
   custo_unitario: number;
+  ingredient_id?: string | null;
+  perda_pct?: number | null;
 };
 
 export type RecipeItemUpdate = Partial<Omit<RecipeItemInsert, "menu_item_id">>;
