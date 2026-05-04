@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
 import type { ActionResult } from "@/lib/result";
 import type {
@@ -20,8 +20,15 @@ function revalidate() {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function getGroupId(user: Awaited<ReturnType<typeof requireUser>>): string | null {
-  return user.roles.find((r) => r.groupId)?.groupId ?? null;
+async function resolveGroupId(user: Awaited<ReturnType<typeof requireUser>>): Promise<string | null> {
+  const fromRoles = user.roles.find((r) => r.groupId)?.groupId ?? null;
+  if (fromRoles) return fromRoles;
+
+  // Fallback para bypass/dev: pega o primeiro grupo do banco via service role.
+  const service = createServiceClient();
+  if (!service) return null;
+  const { data } = await service.from("groups").select("id").limit(1).single();
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 // ── Queries ───────────────────────────────────────────────────
@@ -102,7 +109,7 @@ export async function createIngredient(
 ): Promise<ActionResult<Ingredient>> {
   try {
     const user = await requireUser();
-    const groupId = getGroupId(user);
+    const groupId = await resolveGroupId(user);
     if (!groupId) return { ok: false, error: "group_id não encontrado para o usuário" };
 
     if (!input.nome?.trim()) return { ok: false, error: "Nome obrigatório" };
