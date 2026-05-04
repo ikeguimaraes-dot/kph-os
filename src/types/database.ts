@@ -2775,3 +2775,55 @@ export type ChecklistRecordRow = {
   observacoes: string | null;
   created_at: string;
 };
+
+// ── Reservations (migration 031) ──────────────────────────────
+export type ReservationStatus = "pendente" | "confirmada" | "cancelada" | "no_show" | "finalizada";
+export type ReservationOrigem = "whatsapp" | "telefone" | "email" | "tagme" | "presencial" | "instagram";
+
+export type ReservationRow = {
+  id: string;
+  unit_id: string;
+  data: string;
+  hora: string;
+  pax: number;
+  status: ReservationStatus;
+  origem: ReservationOrigem;
+  cliente_nome: string;
+  cliente_telefone: string | null;
+  cliente_email: string | null;
+  mesa: string | null;
+  observacoes: string | null;
+  confirmado_por: string | null;
+  confirmado_em: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ── Price Quotes (migration 032) ──────────────────────────────
+export type QuoteStatus = "rascunho" | "enviada" | "recebida" | "aprovada" | "cancelada";
+
+export type PriceQuoteRow = {
+  id: string;
+  unit_id: string;
+  supplier_id: string | null;
+  periodo: string;
+  status: QuoteStatus;
+  titulo: string | null;
+  observacoes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PriceQuoteItemRow = {
+  id: string;
+  quote_id: string;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  preco_unitario: number | null;
+  total: number | null;
+  observacoes: string | null;
+  created_at: string;
+};
