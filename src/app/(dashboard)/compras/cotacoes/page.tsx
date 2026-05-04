@@ -47,6 +47,8 @@ async function CotacoesSection() {
       ? supabase.from("suppliers").select("id, nome").eq("unit_id", unit.id).eq("ativo", true).order("nome")
       : Promise.resolve({ data: [], error: null }),
   ]);
-  const suppliers = ((suppliersRes as { data: Pick<SupplierRow, "id" | "nome">[] | null; error: unknown })?.data ?? []) as Pick<SupplierRow, "id" | "nome">[];
-  return <CotacoesClient unitId={unit.id} unitName={unit.name} quotes={quotes} suppliers={suppliers} defaultMes={now.getMonth() + 1} defaultAno={now.getFullYear()} />;
+  const typedRes = suppliersRes as { data: Pick<SupplierRow, "id" | "nome">[] | null; error: { message: string } | null };
+  if (typedRes.error) console.error("[CotacoesSection/suppliers]", typedRes.error.message);
+  const suppliers = (typedRes.data ?? []) as Pick<SupplierRow, "id" | "nome">[];
+  return <CotacoesClient unitId={unit.id} quotes={quotes} suppliers={suppliers} defaultMes={now.getMonth() + 1} defaultAno={now.getFullYear()} />;
 }

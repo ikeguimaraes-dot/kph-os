@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,16 +38,10 @@ import {
   listQuoteItems,
   updateQuoteStatus,
 } from "./actions";
-
-type QuoteWithMeta = PriceQuoteRow & {
-  supplier_nome: string | null;
-  total_itens: number;
-  total_valor: number | null;
-};
+import type { QuoteWithMeta } from "./actions";
 
 interface Props {
   unitId: string;
-  unitName: string;
   quotes: QuoteWithMeta[];
   suppliers: { id: string; nome: string }[];
   defaultMes: number;
@@ -178,62 +172,65 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
     }));
   }
 
-  async function handleAddItem(e: React.FormEvent, quoteId: string) {
+  function handleAddItem(e: React.FormEvent, quoteId: string) {
     e.preventDefault();
     const form = getAddItemForm(quoteId);
     if (!form.descricao.trim() || !form.quantidade) return;
-    const res = await createQuoteItem({
-      quote_id: quoteId,
-      descricao: form.descricao.trim(),
-      unidade: form.unidade.trim() || "kg",
-      quantidade: Number(form.quantidade),
-      preco_unitario: form.preco ? Number(form.preco) : null,
-      observacoes: null,
-    });
-    if (res.ok) {
-      setItemsCache((prev) => ({
-        ...prev,
-        [quoteId]: [...(prev[quoteId] ?? []), res.data],
-      }));
-      const preco = form.preco ? Number(form.preco) : null;
-      const qty = Number(form.quantidade);
-      const itemTotal = preco != null ? preco * qty : null;
-      setRows((prev) => prev.map((r) => {
-        if (r.id !== quoteId) return r;
-        return {
-          ...r,
-          total_itens: r.total_itens + 1,
-          total_valor: (r.total_valor ?? 0) + (itemTotal ?? 0),
-        };
-      }));
-      setAddItemForms((prev) => ({ ...prev, [quoteId]: { descricao: "", unidade: "kg", quantidade: "", preco: "" } }));
-    }
-  }
-
-  async function handleDeleteItem(quoteId: string, itemId: string) {
-    const item = itemsCache[quoteId]?.find((i) => i.id === itemId);
-    const res = await deleteQuoteItem(itemId);
-    if (res.ok) {
-      setItemsCache((prev) => ({
-        ...prev,
-        [quoteId]: (prev[quoteId] ?? []).filter((i) => i.id !== itemId),
-      }));
-      if (item) {
+    startTransition(async () => {
+      const res = await createQuoteItem({
+        quote_id: quoteId,
+        descricao: form.descricao.trim(),
+        unidade: form.unidade.trim() || "kg",
+        quantidade: Number(form.quantidade),
+        preco_unitario: form.preco ? Number(form.preco) : null,
+        observacoes: null,
+      });
+      if (res.ok) {
+        setItemsCache((prev) => ({
+          ...prev,
+          [quoteId]: [...(prev[quoteId] ?? []), res.data],
+        }));
+        const preco = form.preco ? Number(form.preco) : null;
+        const qty = Number(form.quantidade);
+        const itemTotal = preco != null ? preco * qty : null;
         setRows((prev) => prev.map((r) => {
           if (r.id !== quoteId) return r;
           return {
             ...r,
-            total_itens: Math.max(0, r.total_itens - 1),
-            total_valor: (r.total_valor ?? 0) - (item.total ?? 0),
+            total_itens: r.total_itens + 1,
+            total_valor: (r.total_valor ?? 0) + (itemTotal ?? 0),
           };
         }));
+        setAddItemForms((prev) => ({ ...prev, [quoteId]: { descricao: "", unidade: "kg", quantidade: "", preco: "" } }));
       }
-    }
+    });
+  }
+
+  function handleDeleteItem(quoteId: string, itemId: string) {
+    const item = itemsCache[quoteId]?.find((i) => i.id === itemId);
+    startTransition(async () => {
+      const res = await deleteQuoteItem(itemId);
+      if (res.ok) {
+        setItemsCache((prev) => ({
+          ...prev,
+          [quoteId]: (prev[quoteId] ?? []).filter((i) => i.id !== itemId),
+        }));
+        if (item) {
+          setRows((prev) => prev.map((r) => {
+            if (r.id !== quoteId) return r;
+            return {
+              ...r,
+              total_itens: Math.max(0, r.total_itens - 1),
+              total_valor: (r.total_valor ?? 0) - (item.total ?? 0),
+            };
+          }));
+        }
+      }
+    });
   }
 
   return (
     <div>
-      {/* KPI cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "14px 18px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--text-3)", marginBottom: 6 }}>Total de cotações</div>
@@ -249,7 +246,6 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
         </div>
       </div>
 
-      {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         <Select value={statusFilter} onValueChange={(v: string | null) => setStatusFilter(v ?? "all")}>
           <SelectTrigger style={{ minWidth: 140 }}>
@@ -331,7 +327,6 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
         </div>
       </div>
 
-      {/* Table */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
         {filtered.length === 0 ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>
@@ -360,9 +355,8 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
                 const addForm = getAddItemForm(q.id);
 
                 return (
-                  <>
+                  <Fragment key={q.id}>
                     <TableRow
-                      key={q.id}
                       onClick={() => handleRowClick(q.id)}
                       style={{ cursor: "pointer" }}
                     >
@@ -410,7 +404,6 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
                       <TableRow key={q.id + "-expanded"}>
                         <TableCell colSpan={8} style={{ padding: 0 }}>
                           <div style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", padding: "16px 20px" }}>
-                            {/* Items sub-table */}
                             {items.length > 0 ? (
                               <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 13 }}>
                                 <thead>
@@ -451,7 +444,6 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
                               <p style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12 }}>Nenhum item ainda.</p>
                             )}
 
-                            {/* Add item form */}
                             <form
                               onSubmit={(e) => handleAddItem(e, q.id)}
                               style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}
@@ -503,7 +495,7 @@ export function CotacoesClient({ unitId, quotes: initialQuotes, suppliers, defau
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

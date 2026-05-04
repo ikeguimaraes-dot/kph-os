@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/result";
 import type { PriceQuoteRow, PriceQuoteItemRow } from "@/types/database";
 
-type QuoteWithMeta = PriceQuoteRow & { supplier_nome: string | null; total_itens: number; total_valor: number | null };
+export type QuoteWithMeta = PriceQuoteRow & { supplier_nome: string | null; total_itens: number; total_valor: number | null };
 
 export async function listQuotes(unitId: string, mes?: number, ano?: number): Promise<QuoteWithMeta[]> {
   const supabase = await createSupabaseServerClient();
