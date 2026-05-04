@@ -1,10 +1,10 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function listRuns() {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const { data, error } = await supabase
     .from('hos_runs')
     .select(`*, hos_jobs(name, slug)`)
@@ -15,7 +15,7 @@ export async function listRuns() {
 }
 
 export async function getRunDetails(id: string) {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const { data, error } = await supabase
     .from('hos_runs')
     .select(`*, hos_jobs(name, slug), hos_approvals(decision, feedback, created_at, user_id)`)
@@ -30,7 +30,7 @@ export async function submitHumanDecision(
   decision: 'approve' | 'reject',
   feedback?: string
 ) {
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
