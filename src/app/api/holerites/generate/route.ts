@@ -5,16 +5,13 @@
 import { NextResponse } from "next/server";
 
 import { generatePayslipsForUnit } from "@/lib/pessoas/actions";
-import { getCurrentUser } from "@/lib/auth/server";
+import { requireUser } from "@/lib/auth/server";
 import { getCurrentUnit } from "@/lib/auth/unit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ ok: false, error: "Não autenticado" }, { status: 401 });
-  }
+  await requireUser();
 
   const unit = await getCurrentUnit();
   if (!unit) {

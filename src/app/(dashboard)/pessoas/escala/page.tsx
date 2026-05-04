@@ -65,7 +65,6 @@ export default async function EscalaPage({
           >
             {activeView === "mes" ? "Escala mensal" : "Escala semanal"}
           </h1>
-          <ViewToggle active={activeView} weekStartIso={isoWeekStart} monthIso={monthIso} />
         </div>
       </header>
 
@@ -76,69 +75,6 @@ export default async function EscalaPage({
           <EscalaMesSection monthIso={monthIso} />
         )}
       </Suspense>
-    </div>
-  );
-}
-
-function ViewToggle({
-  active,
-  weekStartIso,
-  monthIso,
-}: {
-  active: "semana" | "mes";
-  weekStartIso: string;
-  monthIso: string;
-}) {
-  const base: React.CSSProperties = {
-    padding: "5px 14px",
-    border: "1px solid var(--border)",
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "background var(--t), color var(--t)",
-    textDecoration: "none",
-    display: "inline-block",
-  };
-  const activeStyle: React.CSSProperties = {
-    background: "var(--brand)",
-    color: "#fff",
-    borderColor: "var(--brand)",
-  };
-  const inactiveStyle: React.CSSProperties = {
-    background: "transparent",
-    color: "var(--text-2)",
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        overflow: "hidden",
-      }}
-    >
-      <a
-        href={`/pessoas/escala?view=semana&inicio=${weekStartIso}`}
-        style={{
-          ...base,
-          ...(active === "semana" ? activeStyle : inactiveStyle),
-          borderRadius: "7px 0 0 7px",
-          borderRight: "none",
-        }}
-      >
-        Semana
-      </a>
-      <a
-        href={`/pessoas/escala?view=mes&mes=${monthIso}`}
-        style={{
-          ...base,
-          ...(active === "mes" ? activeStyle : inactiveStyle),
-          borderRadius: "0 7px 7px 0",
-        }}
-      >
-        Mês
-      </a>
     </div>
   );
 }

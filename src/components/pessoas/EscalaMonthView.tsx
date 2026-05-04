@@ -138,25 +138,57 @@ export function EscalaMonthView({ employees, shifts, monthIso }: Props) {
         >
           {monthLabel}
         </span>
-        <button
-          onClick={() => navigateMonth(1)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "5px 10px",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            background: "transparent",
-            color: "var(--text)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Próximo mês
-          <ChevronRight size={14} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <a
+              href={`/pessoas/escala?view=semana`}
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                background: "transparent",
+                color: "var(--text-2)",
+                textDecoration: "none",
+                display: "inline-block",
+                transition: "background var(--t)",
+              }}
+            >
+              Semana
+            </a>
+            <span
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                background: "var(--brand)",
+                color: "#fff",
+                display: "inline-block",
+                cursor: "default",
+              }}
+            >
+              Mês
+            </span>
+          </div>
+          <button
+            onClick={() => navigateMonth(1)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "5px 10px",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              background: "transparent",
+              color: "var(--text)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Próximo mês
+            <ChevronRight size={14} />
+          </button>
+        </div>
       </div>
 
       <div
