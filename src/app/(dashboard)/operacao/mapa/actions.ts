@@ -65,7 +65,10 @@ export async function updateTableStatus(
     .from("restaurant_tables" as never)
     .update({ status } as never)
     .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[updateTableStatus]", error.message);
+    return { ok: false, error: error.message };
+  }
   revalidatePath("/operacao/mapa");
   return { ok: true };
 }
@@ -81,7 +84,10 @@ export async function createRestaurantTable(input: {
   const { error } = await supabase
     .from("restaurant_tables" as never)
     .insert(input as never);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[createRestaurantTable]", error.message);
+    return { ok: false, error: error.message };
+  }
   revalidatePath("/operacao/mapa");
   return { ok: true };
 }
