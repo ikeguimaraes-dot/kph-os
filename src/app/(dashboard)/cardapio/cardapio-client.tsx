@@ -462,7 +462,7 @@ export function CardapioClient({
                     {rows.map((it) => (
                       <TableRow
                         key={it.id}
-                        onClick={() => router.push(`/cardapio/${it.id}/editar`)}
+                        onClick={() => router.push(`/cardapio/${it.id}`)}
                         style={{ cursor: "pointer" }}
                       >
                         <TableCell>
