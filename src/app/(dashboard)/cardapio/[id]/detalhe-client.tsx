@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -203,13 +203,13 @@ function EditRow({
   onCancel: () => void;
 }) {
   const [d, setD] = useState<RowDraft>(draft);
-  // ingredient_id lives in its own state — completely isolated from the text
-  // input so that onChange on IngredientSearch can never overwrite it.
-  const [selectedIngredientId, setSelectedIngredientId] = useState<string | null>(
-    initialIngredientId,
-  );
+  // useRef so the ingredient UUID survives re-renders without triggering them.
+  // useState was being reset when setD caused a re-render that remounted EditRow.
+  const selectedIngredientIdRef = useRef<string | null>(initialIngredientId);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => { console.log("[EditRow] montado/remontado"); }, []);
 
   const qtd = parseFloat(String(d.quantidade).replace(",", ".")) || 0;
   const custo = parseFloat(String(d.custo_unitario).replace(",", ".")) || 0;
@@ -221,7 +221,7 @@ function EditRow({
   }
 
   function handleSelectIngredient(ing: Ingredient) {
-    setSelectedIngredientId(ing.id);
+    selectedIngredientIdRef.current = ing.id;
     setD((p) => ({
       ...p,
       insumo: ing.nome,
@@ -232,19 +232,19 @@ function EditRow({
   }
 
   function handleInsumoChange(value: string) {
-    setSelectedIngredientId(null);
+    selectedIngredientIdRef.current = null;
     setD((p) => ({ ...p, insumo: value }));
   }
 
   async function save() {
-    console.log("[save] insumo:", JSON.stringify(d.insumo), "selectedIngredientId:", selectedIngredientId);
+    console.log("[save] insumo:", JSON.stringify(d.insumo), "selectedIngredientIdRef:", selectedIngredientIdRef.current);
     if (!d.insumo.trim()) { setErr("Insumo obrigatório"); return; }
     setSaving(true);
     try {
       const r = await upsertRecipeItem({
         id: d.id,
         menu_item_id: menuItemId,
-        ingredient_id: selectedIngredientId,
+        ingredient_id: selectedIngredientIdRef.current,
         insumo: d.insumo.trim(),
         unidade: d.unidade || null,
         quantidade: qtd,
