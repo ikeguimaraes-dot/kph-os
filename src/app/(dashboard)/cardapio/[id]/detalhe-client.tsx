@@ -27,9 +27,9 @@ import { classifyCmv, type CmvSeverity } from "@/lib/cardapio/types";
 import type { MenuItem, RecipeItem, RecipeNote } from "@/lib/cardapio/types";
 import {
   upsertRecipeItem,
-  deleteRecipeItem,
   createRecipeNote,
 } from "@/app/(dashboard)/cardapio/actions";
+import { removeRecipeItemExtended } from "@/lib/compras/recipe-actions";
 import { searchIngredientsForRecipe } from "@/lib/compras/ingredient-actions";
 import type { Ingredient } from "@/types/compras-ingredientes";
 
@@ -228,6 +228,7 @@ function EditRow({
 
   async function save() {
     if (!d.insumo.trim()) { setErr("Insumo obrigatório"); return; }
+    console.log("[save] ingredient_id:", d.ingredient_id, "insumo:", d.insumo.trim());
     setSaving(true);
     const r = await upsertRecipeItem({
       id: d.id,
@@ -367,7 +368,7 @@ export function DetalheFichaClient({
   function handleDelete(id: string) {
     if (!window.confirm("Remover este insumo?")) return;
     startTransition(async () => {
-      const r = await deleteRecipeItem(id, item.id);
+      const r = await removeRecipeItemExtended(id, item.id);
       if (!r.ok) { window.alert(`Falha: ${r.error}`); return; }
       setRows((prev) => prev.filter((x) => x.id !== id));
       router.refresh();

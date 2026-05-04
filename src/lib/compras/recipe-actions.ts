@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
 import type { ActionResult } from "@/lib/result";
 import type {
@@ -177,7 +177,9 @@ export async function removeRecipeItemExtended(
 ): Promise<ActionResult<{ id: string }>> {
   try {
     await requireUser();
-    const supabase = await createSupabaseServerClient();
+    // ri_delete RLS still references the old cmv_item_id column; use service
+    // role to bypass the stale policy until a migration fixes it.
+    const supabase = createServiceClient() ?? await createSupabaseServerClient();
     if (!supabase) return { ok: false, error: "Supabase indisponível" };
 
     const { error } = await supabase.from("recipe_items").delete().eq("id", id);
