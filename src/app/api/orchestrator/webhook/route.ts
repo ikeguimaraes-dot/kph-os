@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServiceClient()
+  const supabase = (await createServiceClient())!
   const body = await req.json()
 
   const { event, deployment_url, pr_number, triggered_by = 'webhook' } = body
