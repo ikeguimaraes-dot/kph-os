@@ -2741,3 +2741,37 @@ export type TargetNoteRow = Tables<"target_notes">;
 
 // ── Notificações in-app (migration 024) ───────────────────────
 export type NotificationRow = Tables<"notifications">;
+
+// ── Quality Checklists (migration 029) ────────────────────────
+export type ChecklistTurno = "abertura" | "almoco" | "jantar" | "fechamento";
+export type ChecklistArea  = "cozinha" | "bar" | "salao" | "higiene" | "geral";
+
+export type ChecklistItem = {
+  id: string;
+  texto: string;
+  obrigatorio: boolean;
+};
+
+export type QualityChecklistRow = {
+  id: string;
+  unit_id: string;
+  nome: string;
+  area: ChecklistArea;
+  turno: ChecklistTurno;
+  items: ChecklistItem[];
+  ativo: boolean;
+  created_at: string;
+};
+
+export type ChecklistRecordRow = {
+  id: string;
+  checklist_id: string;
+  unit_id: string;
+  data: string;
+  turno: ChecklistTurno;
+  responsavel_id: string | null;
+  respostas: Record<string, boolean>;
+  score_pct: number | null;
+  observacoes: string | null;
+  created_at: string;
+};
