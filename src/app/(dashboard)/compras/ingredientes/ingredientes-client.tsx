@@ -164,6 +164,8 @@ function CategoriaBadge({ cat }: { cat: IngredienteCategoria }) {
 
 // ── Modal Form ────────────────────────────────────────────────
 
+type SupplierOption = { id: string; nome: string };
+
 type FormDraft = {
   nome: string;
   categoria: IngredienteCategoria | "";
@@ -171,6 +173,7 @@ type FormDraft = {
   custo_padrao: string;
   codigo: string;
   perdas_padrao: string;
+  fornecedor_id: string;
   observacoes: string;
   ativo: boolean;
 };
@@ -183,6 +186,7 @@ function emptyDraft(): FormDraft {
     custo_padrao: "",
     codigo: "",
     perdas_padrao: "",
+    fornecedor_id: "",
     observacoes: "",
     ativo: true,
   };
@@ -196,6 +200,7 @@ function draftFromIngredient(ing: Ingredient): FormDraft {
     custo_padrao: ing.custo_padrao,
     codigo: ing.codigo ?? "",
     perdas_padrao: ing.perdas_padrao ?? "",
+    fornecedor_id: ing.fornecedor_id ?? "",
     observacoes: ing.observacoes ?? "",
     ativo: ing.ativo,
   };
@@ -206,12 +211,14 @@ function IngredientModal({
   onClose,
   editing,
   groupId,
+  suppliers,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   editing: Ingredient | null;
   groupId: string;
+  suppliers: SupplierOption[];
   onSaved: (ing: Ingredient) => void;
 }) {
   const [draft, setDraft] = useState<FormDraft>(
@@ -249,7 +256,8 @@ function IngredientModal({
         unidade_padrao: draft.unidade_padrao as UnidadePadrao,
         custo_padrao: Number(draft.custo_padrao.replace(",", ".")) || 0,
         codigo: draft.codigo.trim() || null,
-        perdas_padrao: draft.perdas_padrao ? Number(draft.perdas_padrao.replace(",", ".")) : null,
+        fornecedor_id: draft.fornecedor_id || null,
+        perdas_padrao: draft.perdas_padrao !== "" ? Number(draft.perdas_padrao.replace(",", ".")) : null,
         observacoes: draft.observacoes.trim() || null,
         ativo: draft.ativo,
       };
@@ -261,7 +269,8 @@ function IngredientModal({
         unidade_padrao: draft.unidade_padrao as UnidadePadrao,
         custo_padrao: Number(draft.custo_padrao.replace(",", ".")) || 0,
         codigo: draft.codigo.trim() || null,
-        perdas_padrao: draft.perdas_padrao ? Number(draft.perdas_padrao.replace(",", ".")) : null,
+        fornecedor_id: draft.fornecedor_id || null,
+        perdas_padrao: draft.perdas_padrao !== "" ? Number(draft.perdas_padrao.replace(",", ".")) : null,
         observacoes: draft.observacoes.trim() || null,
         ativo: draft.ativo,
       };
@@ -368,15 +377,30 @@ function IngredientModal({
             </div>
           </div>
 
-          {/* Código */}
-          <div>
-            <label style={labelStyle}>Código interno (opcional)</label>
-            <input
-              style={fieldStyle}
-              value={draft.codigo}
-              onChange={(e) => set("codigo", e.target.value)}
-              placeholder="Ex: PROT-001"
-            />
+          {/* Código + Fornecedor */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Código interno</label>
+              <input
+                style={fieldStyle}
+                value={draft.codigo}
+                onChange={(e) => set("codigo", e.target.value)}
+                placeholder="Ex: PROT-001"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Fornecedor</label>
+              <select
+                style={{ ...fieldStyle, appearance: "none" }}
+                value={draft.fornecedor_id}
+                onChange={(e) => set("fornecedor_id", e.target.value)}
+              >
+                <option value="">Nenhum</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Observações */}
@@ -451,9 +475,11 @@ function IngredientModal({
 export function IngredientsClient({
   ingredients: initialIngredients,
   groupId,
+  suppliers,
 }: {
   ingredients: Ingredient[];
   groupId: string;
+  suppliers: SupplierOption[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -465,6 +491,12 @@ export function IngredientsClient({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Ingredient | null>(null);
+
+  const supplierMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of suppliers) m[s.id] = s.nome;
+    return m;
+  }, [suppliers]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -703,6 +735,7 @@ export function IngredientsClient({
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Categoria</TableHead>
+                <TableHead>Fornecedor</TableHead>
                 <TableHead style={{ textAlign: "center" }}>Unidade</TableHead>
                 <TableHead style={{ textAlign: "right" }}>Custo padrão</TableHead>
                 <TableHead style={{ textAlign: "right" }}>Perda %</TableHead>
@@ -725,6 +758,11 @@ export function IngredientsClient({
                   </TableCell>
                   <TableCell>
                     <CategoriaBadge cat={ing.categoria} />
+                  </TableCell>
+                  <TableCell>
+                    <span style={{ fontSize: 12, color: "var(--text-2)" }}>
+                      {ing.fornecedor_id ? (supplierMap[ing.fornecedor_id] ?? "—") : "—"}
+                    </span>
                   </TableCell>
                   <TableCell style={{ textAlign: "center" }}>
                     <span
@@ -760,7 +798,7 @@ export function IngredientsClient({
                       color: "var(--text-3)",
                     }}
                   >
-                    {ing.perdas_padrao && Number(ing.perdas_padrao) > 0
+                    {Number(ing.perdas_padrao ?? 0) > 0
                       ? `${Number(ing.perdas_padrao).toFixed(1)}%`
                       : "—"}
                   </TableCell>
@@ -826,6 +864,7 @@ export function IngredientsClient({
         onClose={() => setModalOpen(false)}
         editing={editing}
         groupId={groupId}
+        suppliers={suppliers}
         onSaved={handleSaved}
       />
     </div>

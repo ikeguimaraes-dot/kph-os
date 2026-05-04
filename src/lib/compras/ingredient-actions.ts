@@ -33,6 +33,23 @@ async function resolveGroupId(user: Awaited<ReturnType<typeof requireUser>>): Pr
 
 // ── Queries ───────────────────────────────────────────────────
 
+export async function listSuppliersForSelect(): Promise<{ id: string; nome: string }[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("id, nome")
+      .eq("ativo", true)
+      .order("nome");
+    if (error) { console.error("[listSuppliersForSelect]", error.message); return []; }
+    return (data ?? []) as { id: string; nome: string }[];
+  } catch (e) {
+    console.error("[listSuppliersForSelect] exceção:", e);
+    return [];
+  }
+}
+
 export async function listIngredients(filters?: {
   categoria?: IngredienteCategoria;
   ativo?: boolean;
