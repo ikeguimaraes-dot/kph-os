@@ -31,12 +31,11 @@ create table checklist_records (
 
 create index quality_checklists_unit_idx on quality_checklists(unit_id);
 create index checklist_records_unit_data_idx on checklist_records(unit_id, data);
+create index checklist_records_checklist_idx on checklist_records(checklist_id);
 
 alter table quality_checklists enable row level security;
 alter table checklist_records  enable row level security;
 
-create policy "unit members can select checklists"
-  on quality_checklists for select using (kph_has_role_for_unit(unit_id));
 create policy "unit members can manage checklists"
   on quality_checklists for all
   using (kph_has_role_for_unit(unit_id))
