@@ -227,22 +227,25 @@ function EditRow({
   }
 
   async function save() {
+    console.log("[save] called — insumo:", JSON.stringify(d.insumo), "ingredient_id:", d.ingredient_id);
     if (!d.insumo.trim()) { setErr("Insumo obrigatório"); return; }
-    console.log("[save] ingredient_id:", d.ingredient_id, "insumo:", d.insumo.trim());
     setSaving(true);
-    const r = await upsertRecipeItem({
-      id: d.id,
-      menu_item_id: menuItemId,
-      ingredient_id: d.ingredient_id ?? null,
-      insumo: d.insumo.trim(),
-      unidade: d.unidade || null,
-      quantidade: qtd,
-      perda_pct: d.perda_pct ? parseFloat(d.perda_pct.replace(",", ".")) : null,
-      custo_unitario: custo,
-    });
-    setSaving(false);
-    if (!r.ok) { setErr(r.error); return; }
-    onSave(r.data);
+    try {
+      const r = await upsertRecipeItem({
+        id: d.id,
+        menu_item_id: menuItemId,
+        ingredient_id: d.ingredient_id ?? null,
+        insumo: d.insumo.trim(),
+        unidade: d.unidade || null,
+        quantidade: qtd,
+        perda_pct: d.perda_pct ? parseFloat(d.perda_pct.replace(",", ".")) : null,
+        custo_unitario: custo,
+      });
+      if (!r.ok) { setErr(r.error); return; }
+      onSave(r.data);
+    } finally {
+      setSaving(false);
+    }
   }
 
   const numInput = (
@@ -307,10 +310,16 @@ function EditRow({
         </TableCell>
         <TableCell style={{ textAlign: "right" }}>
           <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-            <Button size="icon" variant="ghost" style={{ width: 28, height: 28 }} onClick={onCancel} disabled={saving}>
+            <Button type="button" size="icon" variant="ghost" style={{ width: 28, height: 28 }} onClick={onCancel} disabled={saving}>
               <X size={14} />
             </Button>
-            <Button size="icon" style={{ width: 28, height: 28 }} onClick={save} disabled={saving}>
+            <Button
+              type="button"
+              size="icon"
+              style={{ width: 28, height: 28 }}
+              disabled={saving}
+              onClick={() => { console.log("SAVE CLICKED"); save(); }}
+            >
               {saving ? "…" : <Check size={14} />}
             </Button>
           </div>
