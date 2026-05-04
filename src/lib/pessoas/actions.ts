@@ -20,6 +20,7 @@ import type {
   OvertimeRecord,
   OvertimeRecordInsert,
   OvertimeRecordUpdate,
+  OvertimeRecordWithEmployee,
   Payslip,
   PayslipStatus,
   PayslipWithEmployee,
@@ -34,9 +35,11 @@ import type {
   TipsRecord,
   TipsRecordInsert,
   TipsRecordUpdate,
+  TipsRecordWithEmployee,
   TransportVoucher,
   TransportVoucherInsert,
   TransportVoucherUpdate,
+  TransportVoucherWithEmployee,
   Vacation,
   VacationInsert,
   VacationStatus,
@@ -1294,6 +1297,43 @@ export async function deleteTipsRecord(id: string): Promise<ActionResult<null>> 
   }
 }
 
+/** Lista gorjetas da unit. Filtra por mês/ano se ambos vierem. */
+export async function listTipsByUnit(
+  unitId: string,
+  mes?: number,
+  ano?: number,
+): Promise<TipsRecordWithEmployee[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+    type TipsJoinRow = TipsRecord & {
+      employees: EmployeeStub | EmployeeStub[] | null;
+    };
+    let query = supabase
+      .from(TIPS_TABLE)
+      .select("*, employees!inner(id, nome, sobrenome, funcao, departamento, unit_id)")
+      .eq("employees.unit_id", unitId)
+      .order("periodo", { ascending: false });
+    if (mes && ano) {
+      const start = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const end = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      query = query.gte("periodo", start).lte("periodo", end);
+    }
+    const { data, error } = await query.returns<TipsJoinRow[]>();
+    if (error) {
+      console.error("[listTipsByUnit] error:", error.message);
+      return [];
+    }
+    return (data ?? []).map((row) => ({
+      ...row,
+      employee: unwrapEmployee(row.employees),
+    })) as TipsRecordWithEmployee[];
+  } catch (e) {
+    console.error("[listTipsByUnit] exceção:", e);
+    return [];
+  }
+}
+
 // ── Vale Transporte (transport_vouchers) ───────────────────────
 
 export async function listTransportVouchers(
@@ -1370,6 +1410,43 @@ export async function deleteTransportVoucher(id: string): Promise<ActionResult<n
     return { ok: true, data: null };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro" };
+  }
+}
+
+/** Lista vale-transportes da unit. Filtra por mês/ano se ambos vierem. */
+export async function listVouchersByUnit(
+  unitId: string,
+  mes?: number,
+  ano?: number,
+): Promise<TransportVoucherWithEmployee[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+    type VTJoinRow = TransportVoucher & {
+      employees: EmployeeStub | EmployeeStub[] | null;
+    };
+    let query = supabase
+      .from(VT_TABLE)
+      .select("*, employees!inner(id, nome, sobrenome, funcao, departamento, unit_id)")
+      .eq("employees.unit_id", unitId)
+      .order("periodo", { ascending: false });
+    if (mes && ano) {
+      const start = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const end = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      query = query.gte("periodo", start).lte("periodo", end);
+    }
+    const { data, error } = await query.returns<VTJoinRow[]>();
+    if (error) {
+      console.error("[listVouchersByUnit] error:", error.message);
+      return [];
+    }
+    return (data ?? []).map((row) => ({
+      ...row,
+      employee: unwrapEmployee(row.employees),
+    })) as TransportVoucherWithEmployee[];
+  } catch (e) {
+    console.error("[listVouchersByUnit] exceção:", e);
+    return [];
   }
 }
 
@@ -1478,6 +1555,44 @@ export async function approveOvertime(
     return { ok: true, data: data as OvertimeRecord };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro" };
+  }
+}
+
+/** Lista HE da unit. Filtra por mês/ano se ambos vierem. */
+export async function listOvertimeByUnit(
+  unitId: string,
+  mes?: number,
+  ano?: number,
+): Promise<OvertimeRecordWithEmployee[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+    type OTJoinRow = OvertimeRecord & {
+      employees: EmployeeStub | EmployeeStub[] | null;
+    };
+    let query = supabase
+      .from(OT_TABLE)
+      .select("*, employees!inner(id, nome, sobrenome, funcao, departamento, unit_id)")
+      .eq("employees.unit_id", unitId)
+      .order("date", { ascending: false });
+    if (mes && ano) {
+      const start = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const lastDay = new Date(ano, mes, 0).getDate();
+      const end = `${ano}-${String(mes).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      query = query.gte("date", start).lte("date", end);
+    }
+    const { data, error } = await query.returns<OTJoinRow[]>();
+    if (error) {
+      console.error("[listOvertimeByUnit] error:", error.message);
+      return [];
+    }
+    return (data ?? []).map((row) => ({
+      ...row,
+      employee: unwrapEmployee(row.employees),
+    })) as OvertimeRecordWithEmployee[];
+  } catch (e) {
+    console.error("[listOvertimeByUnit] exceção:", e);
+    return [];
   }
 }
 
