@@ -252,9 +252,19 @@ export async function upsertRecipeItem(
         .select()
         .single();
     } else {
+      const insertPayload = {
+        menu_item_id: rest.menu_item_id,
+        unit_id: rest.unit_id ?? null,
+        insumo: rest.insumo,
+        unidade: rest.unidade ?? null,
+        quantidade: rest.quantidade,
+        custo_unitario: rest.custo_unitario,
+        ingredient_id: rest.ingredient_id ?? null,
+        perda_pct: rest.perda_pct ?? null,
+      };
       q = supabase
         .from("recipe_items")
-        .insert(rest as never)
+        .insert(insertPayload as never)
         .select()
         .single();
     }
