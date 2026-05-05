@@ -156,6 +156,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/inteligencia/adocao",   label: "Adoção",         icon: Activity },
       { href: "/inteligencia/feedback", label: "Bugs & Feedback", icon: Bug },
       { href: "/inteligencia/roadmap",  label: "Roadmap",        icon: Map },
+      { href: "/orquestrador", label: "Orquestrador", icon: Bot },
     ],
   },
 ];
