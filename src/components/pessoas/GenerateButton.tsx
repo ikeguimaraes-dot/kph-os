@@ -5,12 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { generatePayslipsCurrentUnit } from "@/lib/pessoas/actions";
 
-/**
- * Botão "Gerar holerites" — chama a Server Action que itera todos os
- * colaboradores ativos da unit. Server Action lê a unit do cookie via
- * getCurrentUnit, então passamos só mes/ano daqui.
- */
 export function GenerateButton({
   mes,
   ano,
@@ -30,28 +26,16 @@ export function GenerateButton({
       return;
     }
     startTransition(async () => {
-      // A unit vem do cookie no servidor — precisamos chamar via wrapper que
-      // resolve a unit. A API expõe generatePayslipsForUnit(unitId, mes, ano)
-      // — então precisamos buscar a unit antes. Mais simples: outra action
-      // wrapper que pega cookie. Por v1, deixamos o usuário trocar de unit
-      // pelo seletor da sidebar e chamamos uma rota dedicada.
-      const res = await fetch("/api/holerites/generate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mes, ano }),
-      });
-      const json = (await res.json()) as
-        | { ok: true; count: number; failures: string[] }
-        | { ok: false; error: string };
-      if (!json.ok) {
-        alert(`Falha: ${json.error}`);
+      const res = await generatePayslipsCurrentUnit(mes, ano);
+      if (!res.ok) {
+        alert(`Falha: ${res.error}`);
         return;
       }
       const failureMsg =
-        json.failures.length > 0
-          ? `\n\nFalhas (${json.failures.length}):\n${json.failures.join("\n")}`
+        res.data.failures.length > 0
+          ? `\n\nFalhas (${res.data.failures.length}):\n${res.data.failures.join("\n")}`
           : "";
-      alert(`${json.count} holerite(s) gerado(s).${failureMsg}`);
+      alert(`${res.data.count} holerite(s) gerado(s).${failureMsg}`);
       router.refresh();
     });
   };

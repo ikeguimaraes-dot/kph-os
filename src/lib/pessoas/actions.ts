@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
+import { getCurrentUnit } from "@/lib/auth/unit";
 import { createNotification } from "@/lib/notifications/actions";
 import type { ActionResult } from "@/lib/result";
 import { gerarHolerite } from "@/lib/pessoas/clt";
@@ -628,6 +629,17 @@ export async function generatePayslipsForUnit(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro inesperado" };
   }
+}
+
+/** Wrapper chamado diretamente do cliente — resolve a unit do cookie no servidor. */
+export async function generatePayslipsCurrentUnit(
+  mes: number,
+  ano: number,
+): Promise<ActionResult<{ count: number; failures: string[] }>> {
+  await requireUser();
+  const unit = await getCurrentUnit();
+  if (!unit) return { ok: false, error: "Sem unidade selecionada" };
+  return generatePayslipsForUnit(unit.id, mes, ano);
 }
 
 async function setPayslipStatus(
