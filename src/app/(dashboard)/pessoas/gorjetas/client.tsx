@@ -80,7 +80,7 @@ async function parseGorjetaExcel(file: File): Promise<ParsedExcel | { error: str
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-  // Find header row: first row with >= 5 Date objects
+  // Pass 1: find header row (first row with >= 5 Date objects)
   let headerRowIdx = -1;
   const dateColMap: Array<{ colIdx: number; dateStr: string }> = [];
 
@@ -110,6 +110,7 @@ async function parseGorjetaExcel(file: File): Promise<ParsedExcel | { error: str
   const toNum = (v: unknown): number => (typeof v === "number" ? v : 0);
   const firstDateColIdx = dateColMap[0]?.colIdx ?? 1;
 
+  // Pass 2: scan ALL rows (before and after header) for summary rows + employee rows
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let receitaRow: any[] | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,35 +124,61 @@ async function parseGorjetaExcel(file: File): Promise<ParsedExcel | { error: str
     cargo: string;
   }> = [];
 
-  for (let i = headerRowIdx + 1; i < raw.length; i++) {
+  for (let i = 0; i < raw.length; i++) {
+    if (i === headerRowIdx) continue; // skip the date header row itself
     const row = raw[i];
     if (!row) continue;
-    const label = String(row[0] ?? "").trim().toUpperCase();
-    if (!label) continue;
-    if (label.includes("VALOR TOTAL POR DIA") || label.includes("VALOR DO DIA")) {
-      receitaRow = row;
-      continue;
-    }
-    if (label.includes("IMPOSTOS") || label.includes("IMPOSTO")) {
-      impostosRow = row;
-      continue;
-    }
-    if (label.includes("TOTAL DE PONTOS") || label.includes("PONTOS DO DIA")) {
-      pontosRow = row;
-      continue;
-    }
-    if (
-      label.startsWith("TOTAL") ||
-      label.startsWith("SUBTOTAL") ||
-      label.startsWith("MÉDIA") ||
-      label.startsWith("MEDIA")
-    )
-      continue;
 
+    // Check first columns (up to firstDateColIdx) for summary labels
+    let isSummary = false;
+    const colsToCheck = Math.min(firstDateColIdx + 1, row.length, 4);
+    for (let j = 0; j < colsToCheck; j++) {
+      const label = String(row[j] ?? "").trim().toUpperCase();
+      if (!label) continue;
+      if (
+        !receitaRow &&
+        (label.includes("VALOR TOTAL POR DIA") ||
+          label.includes("VALOR DO DIA") ||
+          label.includes("RECEITA BRUTA"))
+      ) {
+        receitaRow = row;
+        isSummary = true;
+        break;
+      }
+      if (
+        !impostosRow &&
+        (label.includes("IMPOSTOS") || label.includes("IMPOSTO"))
+      ) {
+        impostosRow = row;
+        isSummary = true;
+        break;
+      }
+      if (
+        !pontosRow &&
+        (label.includes("TOTAL DE PONTOS") || label.includes("PONTOS DO DIA"))
+      ) {
+        pontosRow = row;
+        isSummary = true;
+        break;
+      }
+      if (
+        label.startsWith("TOTAL") ||
+        label.startsWith("SUBTOTAL") ||
+        label.startsWith("MÉDIA") ||
+        label.startsWith("MEDIA")
+      ) {
+        isSummary = true;
+        break;
+      }
+    }
+    if (isSummary) continue;
+
+    // Employee row: must have a non-empty name in col 0 and at least one positive day value
+    const nome = String(row[0] ?? "").trim();
+    if (!nome) continue;
     const hasDayValues = dateColMap.some((d) => toNum(row[d.colIdx]) > 0);
     if (!hasDayValues) continue;
 
-    const nome = String(row[0] ?? "").trim();
     const cargo = firstDateColIdx >= 2 ? String(row[1] ?? "").trim() : "";
     colabRows.push({ row, nome, cargo });
   }
@@ -171,10 +198,13 @@ async function parseGorjetaExcel(file: File): Promise<ParsedExcel | { error: str
   const minDate = dateObjs[0] ?? new Date();
   const maxDate = dateObjs[dateObjs.length - 1] ?? new Date();
 
-  // Quinzena detection: Q2 = days 11–25, Q1 = days 26–10 (spans months)
+  // Quinzena detection:
+  //   Q1 = spans months: day 26 of month M to day 10 of month M+1
+  //   Q2 = within same month: days 11–25
+  // If firstDay >= 26 OR lastDay <= 10 → Q1; otherwise Q2
   const firstDay = minDate.getDate();
   const lastDay = maxDate.getDate();
-  const quinzena: 1 | 2 = firstDay >= 11 && lastDay <= 25 ? 2 : 1;
+  const quinzena: 1 | 2 = firstDay >= 26 || lastDay <= 10 ? 1 : 2;
 
   // Period label uses the last date's month
   const periodo = `${MESES_PT[maxDate.getMonth()]}/${String(maxDate.getFullYear()).slice(2)}`;
@@ -608,11 +638,22 @@ export function GorjetasClient({
     const totalBruto = selectedPeriodosData.reduce((s, p) => s + Number(p.receita_bruta), 0);
     const totalLiquido = selectedPeriodosData.reduce((s, p) => s + Number(p.valor_liquido), 0);
     const totalPontos = selectedPeriodosData.reduce((s, p) => s + Number(p.total_pontos), 0);
-    const valorMedioPonto = totalPontos > 0 ? totalLiquido / totalPontos : 0;
+    // Fallback: gorjeta_periodos importado sem receita_bruta (bug de import antigo)
+    // sum(dias.valor_calculado) ≈ total líquido distribuído
+    const totalDistribuido = dias.reduce((s, d) => s + Number(d.valor_calculado), 0);
+    const imposto_pct = Number(selectedPeriodosData[0]?.imposto_pct ?? 20);
+    const totalLiquidoEff = totalLiquido > 0 ? totalLiquido : totalDistribuido;
+    const totalBrutoEff =
+      totalBruto > 0
+        ? totalBruto
+        : totalDistribuido > 0
+        ? totalDistribuido / (1 - imposto_pct / 100)
+        : 0;
+    const valorMedioPonto = totalPontos > 0 ? totalLiquidoEff / totalPontos : 0;
     const numColaboradores = new Set(
       dias.filter((d) => d.valor_calculado > 0).map((d) => d.nome),
     ).size;
-    return { totalBruto, totalLiquido, valorMedioPonto, numColaboradores };
+    return { totalBruto: totalBrutoEff, totalLiquido: totalLiquidoEff, valorMedioPonto, numColaboradores };
   }, [selectedPeriodosData, dias]);
 
   const periodoMap = useMemo(() => {
