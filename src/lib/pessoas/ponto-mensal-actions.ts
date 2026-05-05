@@ -27,7 +27,7 @@ export type PontoMensalInput = {
   falta_injustificada_horas: string;
   falta_injustificada_dias: number;
   atestado_medico: string;
-  abonado: string;
+  abonado_horas: string;
   abonado_dias: number;
   afastamentos_horas: string;
   afastamentos_dias: number;

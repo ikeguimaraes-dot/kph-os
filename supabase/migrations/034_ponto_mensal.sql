@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS ponto_mensal (
   falta_injustificada_horas  TEXT,
   falta_injustificada_dias   INTEGER     NOT NULL DEFAULT 0,
   atestado_medico            TEXT,
-  abonado                    TEXT,
+  abonado_horas              TEXT,
   abonado_dias               INTEGER     NOT NULL DEFAULT 0,
   afastamentos_horas         TEXT,
   afastamentos_dias          INTEGER     NOT NULL DEFAULT 0,

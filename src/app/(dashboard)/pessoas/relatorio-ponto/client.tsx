@@ -46,7 +46,7 @@ interface PontoRow {
   licenca_paternidade_horas: string;
   licenca_paternidade_dias: number;
   saldo: string;
-  abonado: string;
+  abonado_horas: string;
   abonado_dias: number;
   atestado_medico: string;
   regime: string;
@@ -90,7 +90,7 @@ function parsePontoCSV(text: string): PontoRow[] {
       departamento: g(7),
       filial: g(8),
       regime: g(9),
-      abonado: g(10),
+      abonado_horas: g(10),
       abonado_dias: n(11),
       atestado_medico: g(12),
       adicional_noturno: g(13),
@@ -158,7 +158,7 @@ function dbRowToPontoRow(r: PontoMensalRow): PontoRow {
     licenca_paternidade_horas: r.licenca_paternidade_horas ?? "",
     licenca_paternidade_dias: r.licenca_paternidade_dias,
     saldo: r.saldo ?? "",
-    abonado: r.abonado ?? "",
+    abonado_horas: r.abonado_horas ?? "",
     abonado_dias: r.abonado_dias,
     atestado_medico: r.atestado_medico ?? "",
     regime: r.regime ?? "",
@@ -192,7 +192,7 @@ function pontoRowToInput(r: PontoRow): PontoMensalInput {
     falta_injustificada_horas: r.falta_injustificada_horas,
     falta_injustificada_dias: r.falta_injustificada_dias,
     atestado_medico: r.atestado_medico,
-    abonado: r.abonado,
+    abonado_horas: r.abonado_horas,
     abonado_dias: r.abonado_dias,
     afastamentos_horas: r.afastamentos_horas,
     afastamentos_dias: r.afastamentos_dias,
@@ -436,7 +436,7 @@ function Drawer({ row, onClose }: { row: PontoRow; onClose: () => void }) {
           <DetailRow label="Falta Injustificada (h)" value={row.falta_injustificada_horas} />
           <DetailRow label="Falta Injustificada (dias)" value={row.falta_injustificada_dias || ""} />
           <DetailRow label="Atestado Médico" value={row.atestado_medico} />
-          <DetailRow label="Abonado (h)" value={row.abonado} />
+          <DetailRow label="Abonado (h)" value={row.abonado_horas} />
           <DetailRow label="Abonado (dias)" value={row.abonado_dias || ""} />
           <DetailRow label="Afastamentos (h)" value={row.afastamentos_horas} />
           <DetailRow label="Afastamentos (dias)" value={row.afastamentos_dias || ""} />
