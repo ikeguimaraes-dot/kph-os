@@ -502,19 +502,12 @@ export function PontoMensalClient({
     setFileName(file.name);
 
     const buffer = await file.arrayBuffer();
-    let text: string;
-    // Auto-detecta encoding: UTF-8 primeiro (fatal:true rejeita sequências inválidas),
-    // cai para Windows-1252 se o arquivo for legado Totvs Latin-1.
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-      // Remove BOM se presente
+    // Totvs BR exporta Windows-1252 por padrão — tenta primeiro.
+    // Se houver replacement char (U+FFFD), o arquivo é UTF-8 e retenta.
+    let text = new TextDecoder("windows-1252").decode(buffer);
+    if (text.includes("�")) {
+      text = new TextDecoder("utf-8").decode(buffer);
       if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-    } catch {
-      try {
-        text = new TextDecoder("windows-1252").decode(buffer);
-      } catch {
-        text = new TextDecoder("iso-8859-1").decode(buffer);
-      }
     }
 
     const parsed = parsePontoCSV(text);
