@@ -233,6 +233,123 @@ function isNegHours(s: string): boolean {
   return true;
 }
 
+// ── Alert banner ──────────────────────────────────────────────────────────────
+
+const ALERT_LIMIT = 12;
+
+function AlertBanner({
+  tipo,
+  items,
+  expanded,
+  onToggle,
+}: {
+  tipo: "faltas" | "negativas";
+  items: PontoRow[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isFaltas = tipo === "faltas";
+  const titleColor = isFaltas ? "#DC2626" : "#A16207";
+  const visible = expanded ? items : items.slice(0, ALERT_LIMIT);
+  const hasMore = items.length > ALERT_LIMIT;
+
+  function badgeColor(row: PontoRow) {
+    if (isFaltas) return "#DC2626";
+    return hhmm2min(row.horas_negativas) >= 600 ? "#DC2626" : "#A16207";
+  }
+  function badgeBg(row: PontoRow) {
+    if (isFaltas) return "rgba(239,68,68,0.18)";
+    return hhmm2min(row.horas_negativas) >= 600 ? "rgba(239,68,68,0.18)" : "rgba(245,158,11,0.18)";
+  }
+  function badgeText(row: PontoRow) {
+    if (isFaltas)
+      return `${row.falta_injustificada_dias} dia${row.falta_injustificada_dias > 1 ? "s" : ""}`;
+    return `${row.horas_negativas}h`;
+  }
+
+  return (
+    <div
+      style={{
+        background: isFaltas ? "rgba(239,68,68,0.08)" : "rgba(245,158,11,0.08)",
+        border: `1px solid ${isFaltas ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
+        borderRadius: 10,
+        padding: "12px 16px",
+        marginBottom: 12,
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        {isFaltas
+          ? <AlertCircle size={16} style={{ color: "#DC2626", flexShrink: 0 }} />
+          : <AlertTriangle size={16} style={{ color: "#A16207", flexShrink: 0 }} />
+        }
+        <span style={{ fontSize: 13, fontWeight: 700, color: titleColor }}>
+          {isFaltas ? "Faltas injustificadas detectadas" : "Horas negativas no mês"}
+        </span>
+        <span
+          style={{
+            fontSize: 11, fontWeight: 700,
+            background: isFaltas ? "rgba(239,68,68,0.18)" : "rgba(245,158,11,0.18)",
+            color: titleColor,
+            borderRadius: 20,
+            padding: "2px 8px",
+          }}
+        >
+          {items.length} colaborador{items.length !== 1 ? "es" : ""}
+        </span>
+      </div>
+
+      {/* Grid 3 colunas */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+        {visible.map((row, i) => (
+          <div
+            key={(row.matricula || "x") + i}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 6, borderRadius: 7, padding: "6px 10px",
+              background: isFaltas ? "rgba(239,68,68,0.06)" : "rgba(245,158,11,0.06)",
+              border: `1px solid ${isFaltas ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)"}`,
+              minWidth: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12, fontWeight: 600, color: "var(--text)",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                flex: 1, minWidth: 0,
+              }}
+            >
+              {row.nome}
+            </span>
+            <span
+              style={{
+                fontSize: 11, fontWeight: 700,
+                color: badgeColor(row), background: badgeBg(row),
+                borderRadius: 12, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0,
+              }}
+            >
+              {badgeText(row)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={onToggle}
+          style={{
+            marginTop: 8, background: "none", border: "none",
+            cursor: "pointer", fontSize: 12, fontWeight: 600,
+            color: titleColor, padding: "4px 0",
+          }}
+        >
+          {expanded ? "Mostrar menos" : `Ver todos (${items.length})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── KPI card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -485,6 +602,8 @@ export function PontoMensalClient({
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("Todos");
   const [selected, setSelected] = useState<PontoRow | null>(null);
+  const [expandedFaltas, setExpandedFaltas] = useState(false);
+  const [expandedNegativas, setExpandedNegativas] = useState(false);
 
   // Load rows from DB when period changes
   useEffect(() => {
@@ -838,53 +957,21 @@ export function PontoMensalClient({
 
           {/* Alertas */}
           {comFaltas.length > 0 && (
-            <div
-              style={{
-                background: "rgba(239,68,68,0.08)",
-                border: "1px solid rgba(239,68,68,0.3)",
-                borderRadius: 10,
-                padding: "12px 16px",
-                marginBottom: 12,
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-start",
-              }}
-            >
-              <AlertCircle size={16} style={{ color: "#DC2626", flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#DC2626", marginBottom: 4 }}>
-                  Faltas injustificadas detectadas
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.7 }}>
-                  {comFaltas.map((r) => `${r.nome} (${r.falta_injustificada_dias} dia${r.falta_injustificada_dias > 1 ? "s" : ""})`).join(" · ")}
-                </div>
-              </div>
-            </div>
+            <AlertBanner
+              tipo="faltas"
+              items={comFaltas}
+              expanded={expandedFaltas}
+              onToggle={() => setExpandedFaltas((v) => !v)}
+            />
           )}
 
           {comNegativas.length > 0 && (
-            <div
-              style={{
-                background: "rgba(245,158,11,0.08)",
-                border: "1px solid rgba(245,158,11,0.3)",
-                borderRadius: 10,
-                padding: "12px 16px",
-                marginBottom: 12,
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-start",
-              }}
-            >
-              <AlertTriangle size={16} style={{ color: "#A16207", flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#A16207", marginBottom: 4 }}>
-                  Horas negativas no mês
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.7 }}>
-                  {comNegativas.map((r) => `${r.nome} (${r.horas_negativas})`).join(" · ")}
-                </div>
-              </div>
-            </div>
+            <AlertBanner
+              tipo="negativas"
+              items={comNegativas}
+              expanded={expandedNegativas}
+              onToggle={() => setExpandedNegativas((v) => !v)}
+            />
           )}
 
           {/* Filtros */}
