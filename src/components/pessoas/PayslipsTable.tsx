@@ -252,6 +252,7 @@ export function PayslipsTable({
               <a
                 href={`/pessoas/holerites/${p.id}`}
                 className={buttonVariants({ variant: "ghost", size: "sm" })}
+                title="Ver holerite"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>

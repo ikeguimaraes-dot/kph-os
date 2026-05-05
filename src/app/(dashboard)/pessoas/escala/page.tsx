@@ -1,14 +1,15 @@
 import { Suspense } from "react";
-import { addDays, format, parse, startOfWeek } from "date-fns";
+import { addDays, endOfMonth, format, parse, startOfMonth, startOfWeek } from "date-fns";
 
 import { EscalaGrid } from "@/components/pessoas/EscalaGrid";
+import { EscalaMonthView } from "@/components/pessoas/EscalaMonthView";
 import { listEmployees, listShifts } from "@/lib/pessoas/actions";
 import { requireUser } from "@/lib/auth/server";
 import { getCurrentUnit } from "@/lib/auth/unit";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ inicio?: string }>;
+type SearchParams = Promise<{ inicio?: string; view?: string; mes?: string }>;
 
 export default async function EscalaPage({
   searchParams,
@@ -16,15 +17,18 @@ export default async function EscalaPage({
   searchParams: SearchParams;
 }) {
   await requireUser();
-  const { inicio } = await searchParams;
+  const { inicio, view, mes } = await searchParams;
+
+  const activeView: "semana" | "mes" = view === "mes" ? "mes" : "semana";
 
   const referenceDate = parseInicio(inicio) ?? new Date();
-  // weekStartsOn: 0 = Domingo (header da grade vai Dom→Sáb).
   const weekStart = startOfWeek(referenceDate, { weekStartsOn: 0 });
   const weekEnd = addDays(weekStart, 6);
 
-  const isoStart = format(weekStart, "yyyy-MM-dd");
-  const isoEnd = format(weekEnd, "yyyy-MM-dd");
+  const isoWeekStart = format(weekStart, "yyyy-MM-dd");
+  const isoWeekEnd = format(weekEnd, "yyyy-MM-dd");
+
+  const monthIso = parseMonth(mes) ?? format(new Date(), "yyyy-MM");
 
   return (
     <div style={{ maxWidth: 1380, margin: "0 auto" }}>
@@ -40,24 +44,36 @@ export default async function EscalaPage({
         >
           Pessoas · Escala
         </div>
-        <h1
+        <div
           style={{
-            fontSize: 26,
-            fontWeight: 700,
-            margin: "6px 0 0",
-            color: "var(--text)",
-            letterSpacing: -0.4,
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            marginTop: 6,
           }}
         >
-          Escala semanal
-        </h1>
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              margin: 0,
+              color: "var(--text)",
+              letterSpacing: -0.4,
+            }}
+          >
+            {activeView === "mes" ? "Escala mensal" : "Escala semanal"}
+          </h1>
+        </div>
       </header>
 
       <Suspense fallback={<GridSkeleton />}>
-        <EscalaSection
-          weekStartIso={isoStart}
-          weekEndIso={isoEnd}
-        />
+        {activeView === "semana" ? (
+          <EscalaSection weekStartIso={isoWeekStart} weekEndIso={isoWeekEnd} />
+        ) : (
+          <EscalaMesSection monthIso={monthIso} />
+        )}
       </Suspense>
     </div>
   );
@@ -71,9 +87,7 @@ async function EscalaSection({
   weekEndIso: string;
 }) {
   const unit = await getCurrentUnit();
-  if (!unit) {
-    return <NoUnitState />;
-  }
+  if (!unit) return <NoUnitState />;
 
   const [employees, shifts] = await Promise.all([
     listEmployees(unit.id),
@@ -81,10 +95,7 @@ async function EscalaSection({
   ]);
 
   const ativos = employees.filter((e) => e.ativo);
-
-  if (ativos.length === 0) {
-    return <NoEmployeesState unitName={unit.name} />;
-  }
+  if (ativos.length === 0) return <NoEmployeesState unitName={unit.name} />;
 
   return (
     <EscalaGrid
@@ -98,10 +109,44 @@ async function EscalaSection({
   );
 }
 
+async function EscalaMesSection({ monthIso }: { monthIso: string }) {
+  const unit = await getCurrentUnit();
+  if (!unit) return <NoUnitState />;
+
+  const monthStart = startOfMonth(parse(`${monthIso}-01`, "yyyy-MM-dd", new Date()));
+  const monthEnd = endOfMonth(monthStart);
+  const isoStart = format(monthStart, "yyyy-MM-dd");
+  const isoEnd = format(monthEnd, "yyyy-MM-dd");
+
+  const [employees, shifts] = await Promise.all([
+    listEmployees(unit.id),
+    listShifts(unit.id, isoStart, isoEnd),
+  ]);
+
+  const ativos = employees.filter((e) => e.ativo);
+  if (ativos.length === 0) return <NoEmployeesState unitName={unit.name} />;
+
+  return (
+    <EscalaMonthView
+      key={monthIso}
+      unitId={unit.id}
+      employees={ativos}
+      shifts={shifts}
+      monthIso={monthIso}
+    />
+  );
+}
+
 function parseInicio(value: string | undefined): Date | null {
   if (!value) return null;
   const d = parse(value, "yyyy-MM-dd", new Date());
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseMonth(value: string | undefined): string | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}$/.test(value)) return value;
+  return null;
 }
 
 function NoUnitState() {
@@ -175,4 +220,3 @@ function GridSkeleton() {
     </div>
   );
 }
-

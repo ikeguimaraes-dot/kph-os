@@ -482,6 +482,36 @@ export function EscalaGrid({
             )}
             Copiar semana anterior
           </Button>
+          <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <span
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                background: "var(--brand)",
+                color: "#fff",
+                display: "inline-block",
+                cursor: "default",
+              }}
+            >
+              Semana
+            </span>
+            <a
+              href={`/pessoas/escala?view=mes&mes=${weekStartIso.slice(0, 7)}`}
+              style={{
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                background: "transparent",
+                color: "var(--text-2)",
+                textDecoration: "none",
+                display: "inline-block",
+                transition: "background var(--t)",
+              }}
+            >
+              Mês
+            </a>
+          </div>
           <span
             style={{
               fontSize: 13,

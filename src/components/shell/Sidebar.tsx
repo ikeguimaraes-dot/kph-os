@@ -17,13 +17,13 @@ import {
   // pessoas
   Users, User, Briefcase, CalendarDays, Clock, Plane, CalendarX2, Timer,
   ShieldAlert, Receipt, DollarSign, Bus, GraduationCap, ClipboardCheck,
-  FolderOpen, Upload,
+  FolderOpen, Upload, FileBarChart2,
   // comercial
   Handshake, MessageSquare, CalendarCheck, Bot, Megaphone, Filter,
   // marca
   Bookmark, Info, Globe, Award,
   // inteligencia
-  Brain, Target, LineChart, Layers, Bug, Map, BarChart3,
+  Brain, Target, LineChart, Layers, Bug, Map, BarChart3, Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth, useUnit } from "@/lib/auth/context";
@@ -115,6 +115,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/pessoas/avaliacoes",      label: "Avaliações",        icon: ClipboardCheck },
       { href: "/pessoas/documentos",      label: "Documentos",        icon: FolderOpen },
       { href: "/pessoas/importacao",      label: "Importar Dados",    icon: Upload },
+      { href: "/pessoas/relatorio-ponto", label: "Relatório de Ponto", icon: FileBarChart2 },
     ],
   },
   {
@@ -156,7 +157,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/inteligencia/adocao",   label: "Adoção",         icon: Activity },
       { href: "/inteligencia/feedback", label: "Bugs & Feedback", icon: Bug },
       { href: "/inteligencia/roadmap",  label: "Roadmap",        icon: Map },
-      { href: "/orquestrador", label: "Orquestrador", icon: Bot },
+      { href: "/orquestrador",          label: "Orquestrador",   icon: Workflow },
     ],
   },
 ];

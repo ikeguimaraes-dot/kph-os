@@ -1,74 +1,115 @@
-import { listRuns } from '@/lib/orquestrador/actions'
-import Link from 'next/link'
+import { listOrchestratorRuns } from "@/lib/orquestrador/actions";
+import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  running: 'bg-blue-100 text-blue-800',
-  awaiting_approval: 'bg-orange-100 text-orange-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  failed: 'bg-gray-100 text-gray-800',
-}
+export const dynamic = "force-dynamic";
 
-const statusLabel: Record<string, string> = {
-  pending: 'Aguardando',
-  running: 'Rodando',
-  awaiting_approval: '⏳ Aguarda Aprovação',
-  approved: '✅ Aprovado',
-  rejected: '❌ Rejeitado',
-  failed: '💥 Falhou',
-}
-
-export default async function OrquestradorPage() {
-  const runs = (await listRuns()) as any[]
-  const pendentes = runs.filter(r => r.status === 'awaiting_approval')
-  const historico = runs.filter(r => r.status !== 'awaiting_approval')
+export default async function OrchestratorPage() {
+  const runs = await listOrchestratorRuns();
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Orquestrador HOS</h1>
-        <p className="text-gray-500 text-sm mt-1">Human-in-the-loop • Você aprova antes de ir pra produção</p>
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Orquestrador HOS</h2>
+        <div className="flex items-center space-x-2">
+          {/* Pode adicionar um botão de refresh ou disparar job manual */}
+        </div>
       </div>
 
-      {pendentes.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 text-orange-600">⏳ Aguardando sua aprovação ({pendentes.length})</h2>
-          <div className="space-y-2">
-            {pendentes.map(run => (
-              <Link key={run.id} href={`/orquestrador/${run.id}`}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-orange-50 transition">
-                <div>
-                  <p className="font-medium">{run.hos_jobs?.name}</p>
-                  <p className="text-xs text-gray-400">{new Date(run.created_at).toLocaleString('pt-BR')} · via {run.triggered_by}</p>
-                </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor[run.status]}`}>
-                  {statusLabel[run.status]}
-                </span>
-              </Link>
-            ))}
+      <div className="grid gap-4">
+        <div className="rounded-md border bg-card text-card-foreground shadow-sm p-6">
+          <div className="flex flex-col space-y-1.5 pb-4">
+            <h3 className="text-2xl font-semibold leading-none tracking-tight">Execuções Recentes</h3>
+            <p className="text-sm text-muted-foreground">
+              Acompanhe e aprove as ações sugeridas pelos Agentes de IA.
+            </p>
           </div>
-        </section>
-      )}
-
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Histórico</h2>
-        <div className="space-y-2">
-          {historico.map(run => (
-            <Link key={run.id} href={`/orquestrador/${run.id}`}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition">
-              <div>
-                <p className="font-medium">{run.hos_jobs?.name}</p>
-                <p className="text-xs text-gray-400">{new Date(run.created_at).toLocaleString('pt-BR')} · via {run.triggered_by}</p>
-              </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColor[run.status]}`}>
-                {statusLabel[run.status]}
-              </span>
-            </Link>
-          ))}
-          {historico.length === 0 && <p className="text-gray-400 text-sm">Nenhuma execução ainda.</p>}
+          
+          <div className="w-full overflow-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Job</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Payload (Origem)</th>
+                  <th className="px-4 py-3 font-medium">Data</th>
+                  <th className="px-4 py-3 font-medium text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-6 text-muted-foreground">
+                      Nenhuma execução encontrada.
+                    </td>
+                  </tr>
+                ) : (
+                  runs.map((run) => (
+                    <tr key={run.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">{run.job?.name}</div>
+                        <div className="text-xs text-muted-foreground">{run.job?.slug}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={run.status} />
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px] truncate">
+                        {run.payload?.preview_url ? (
+                          <a href={run.payload.preview_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
+                            {run.payload.preview_url}
+                          </a>
+                        ) : run.payload?.pr_number ? (
+                          <span>PR #{run.payload.pr_number}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatDistanceToNow(new Date(run.created_at), { addSuffix: true, locale: ptBR })}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link 
+                          href={`/orquestrador/${run.id}`}
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+                        >
+                          Detalhes
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
-  )
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    pending: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300",
+    running: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    awaiting_approval: "bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900 dark:text-yellow-300",
+    approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+  };
+  
+  const labels: Record<string, string> = {
+    pending: "Pendente",
+    running: "Executando",
+    awaiting_approval: "Aguardando Aprovação",
+    approved: "Aprovado",
+    rejected: "Rejeitado",
+    failed: "Falhou",
+  };
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${colors[status] || colors.pending}`}>
+      {labels[status] || status}
+    </span>
+  );
 }

@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
+import { getCurrentUnit } from "@/lib/auth/unit";
 import { createNotification } from "@/lib/notifications/actions";
 import type { ActionResult } from "@/lib/result";
 import { gerarHolerite } from "@/lib/pessoas/clt";
@@ -512,6 +513,78 @@ export async function getPayslip(id: string): Promise<PayslipWithEmployee | null
   }
 }
 
+export type PayslipFull = {
+  payslip: PayslipWithEmployee;
+  employeeExtra: {
+    cpf: string | null;
+    pis: string | null;
+    data_admissao: string;
+    departamento: string | null;
+  } | null;
+  unit: { name: string; address: string | null } | null;
+  brand: { name: string } | null;
+};
+
+export async function getPayslipFull(id: string): Promise<PayslipFull | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from(PAYSLIPS_TABLE)
+      .select("*, employees!inner(id, nome, sobrenome, funcao, salario_base, unit_id, cpf, pis, data_admissao, departamento)")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const empRaw = (Array.isArray((data as any).employees)
+      ? (data as any).employees[0]
+      : (data as any).employees) as Record<string, any> | null;
+
+    const payslip: PayslipWithEmployee = {
+      ...(data as any),
+      employee: empRaw
+        ? { id: empRaw.id, nome: empRaw.nome, sobrenome: empRaw.sobrenome, funcao: empRaw.funcao, salario_base: empRaw.salario_base }
+        : null,
+    };
+
+    const employeeExtra = empRaw
+      ? { cpf: empRaw.cpf ?? null, pis: empRaw.pis ?? null, data_admissao: empRaw.data_admissao, departamento: empRaw.departamento ?? null }
+      : null;
+
+    let unit: { name: string; address: string | null } | null = null;
+    let brand: { name: string } | null = null;
+
+    if (empRaw?.unit_id) {
+      const { data: unitData } = await supabase
+        .from("units")
+        .select("id, name, address, brand_id")
+        .eq("id", empRaw.unit_id)
+        .maybeSingle();
+
+      if (unitData) {
+        const u = unitData as any;
+        unit = { name: u.name, address: u.address ?? null };
+
+        if (u.brand_id) {
+          const { data: brandData } = await supabase
+            .from("brands")
+            .select("id, name")
+            .eq("id", u.brand_id)
+            .maybeSingle();
+          if (brandData) brand = { name: (brandData as any).name };
+        }
+      }
+    }
+
+    return { payslip, employeeExtra, unit, brand };
+  } catch (e) {
+    console.error("[getPayslipFull] exceção:", e);
+    return null;
+  }
+}
+
 /**
  * Calcula CLT completo (INSS, IRRF, HE, AdN, DSR/gorjeta) e UPSERT no banco.
  * Unique em (employee_id, competencia) garante 1 holerite por mês.
@@ -628,6 +701,17 @@ export async function generatePayslipsForUnit(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro inesperado" };
   }
+}
+
+/** Wrapper chamado diretamente do cliente — resolve a unit do cookie no servidor. */
+export async function generatePayslipsCurrentUnit(
+  mes: number,
+  ano: number,
+): Promise<ActionResult<{ count: number; failures: string[] }>> {
+  await requireUser();
+  const unit = await getCurrentUnit();
+  if (!unit) return { ok: false, error: "Sem unidade selecionada" };
+  return generatePayslipsForUnit(unit.id, mes, ano);
 }
 
 async function setPayslipStatus(
@@ -1730,6 +1814,153 @@ export async function listTimeRecords(employeeId: string): Promise<TimeRecord[]>
     return (data ?? []) as TimeRecord[];
   } catch (e) {
     console.error("[listTimeRecords] exceção:", e);
+    return [];
+  }
+}
+
+// ── Alertas de férias ─────────────────────────────────────────
+
+export type VacationAlertEntry = {
+  id: string;
+  nome: string;
+  funcao: string;
+  data_admissao: string;
+  diasRestantes: number;   // negativo = já vencida
+};
+
+export type VacationAlerts = {
+  vencidas: VacationAlertEntry[];
+  vencendo30: VacationAlertEntry[];
+  vencendo60: VacationAlertEntry[];
+  vencendo90: VacationAlertEntry[];
+};
+
+export async function getVacationAlerts(unitId: string): Promise<VacationAlerts> {
+  const empty: VacationAlerts = { vencidas: [], vencendo30: [], vencendo60: [], vencendo90: [] };
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return empty;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const MS_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+    const { data: emps } = await supabase
+      .from(TABLE)
+      .select("id, nome, sobrenome, funcao, data_admissao")
+      .eq("unit_id", unitId)
+      .eq("ativo", true)
+      .not("data_admissao", "is", null);
+
+    if (!emps?.length) return empty;
+
+    const { data: vacs } = await supabase
+      .from(VAC_TABLE)
+      .select("employee_id, start_date, end_date, status, acquisitive_period_end")
+      .eq("unit_id", unitId)
+      .neq("status", "cancelada");
+
+    type VacRow = { employee_id: string; start_date: string; end_date: string; status: string; acquisitive_period_end: string | null };
+    const vacsByEmployee = new Map<string, VacRow[]>();
+    for (const v of (vacs ?? []) as VacRow[]) {
+      if (!vacsByEmployee.has(v.employee_id)) vacsByEmployee.set(v.employee_id, []);
+      vacsByEmployee.get(v.employee_id)!.push(v);
+    }
+
+    const result: VacationAlerts = { vencidas: [], vencendo30: [], vencendo60: [], vencendo90: [] };
+
+    for (const emp of emps as Array<{ id: string; nome: string; sobrenome: string; funcao: string; data_admissao: string }>) {
+      const admissao = new Date(emp.data_admissao + "T00:00:00");
+      const msWorked = today.getTime() - admissao.getTime();
+      const periodsCompleted = Math.floor(msWorked / MS_YEAR);
+      if (periodsCompleted < 1) continue; // ainda no período aquisitivo
+
+      // Data de vencimento da concessão = admissão + (periodsCompleted + 1) * ano
+      const concessaoEnd = new Date(admissao.getTime() + (periodsCompleted + 1) * MS_YEAR);
+      const diasRestantes = Math.round((concessaoEnd.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+
+      // Verifica se já tem férias alocadas cobrindo o período atual
+      const empVacs = vacsByEmployee.get(emp.id) ?? [];
+      const periodStart = new Date(admissao.getTime() + periodsCompleted * MS_YEAR);
+      const hasCoverage = empVacs.some((v) => {
+        const startD = new Date(v.start_date + "T00:00:00");
+        return startD >= periodStart;
+      });
+      if (hasCoverage) continue;
+
+      const entry: VacationAlertEntry = {
+        id: emp.id,
+        nome: `${emp.nome} ${emp.sobrenome}`.trim(),
+        funcao: emp.funcao,
+        data_admissao: emp.data_admissao,
+        diasRestantes,
+      };
+
+      if (diasRestantes < 0) result.vencidas.push(entry);
+      else if (diasRestantes <= 30) result.vencendo30.push(entry);
+      else if (diasRestantes <= 60) result.vencendo60.push(entry);
+      else if (diasRestantes <= 90) result.vencendo90.push(entry);
+    }
+
+    return result;
+  } catch (e) {
+    console.error("[getVacationAlerts] exceção:", e);
+    return empty;
+  }
+}
+
+// ── Banco de horas por unidade ────────────────────────────────
+
+export type BancoHorasEntry = {
+  employee_id: string;
+  nome: string;
+  funcao: string;
+  saldo_horas: number;
+  valor_estimado: number;
+  ultimo_calculo: string | null;
+};
+
+export async function getBancoHorasUnit(unitId: string): Promise<BancoHorasEntry[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return [];
+
+    type TBRow = { id: string; employee_id: string; saldo_minutos: number; ultimo_calculo: string | null };
+    type EmpRow = { id: string; nome: string; sobrenome: string; funcao: string; salario_base: string };
+
+    const [{ data: emps }, { data: balances }] = await Promise.all([
+      supabase
+        .from(TABLE)
+        .select("id, nome, sobrenome, funcao, salario_base")
+        .eq("unit_id", unitId)
+        .eq("ativo", true),
+      supabase
+        .from("time_bank_balance")
+        .select("id, employee_id, saldo_minutos, ultimo_calculo"),
+    ]);
+
+    if (!emps?.length) return [];
+
+    const balanceMap = new Map<string, TBRow>(
+      ((balances ?? []) as TBRow[]).map((b) => [b.employee_id, b]),
+    );
+
+    return (emps as EmpRow[]).map((e) => {
+      const bal = balanceMap.get(e.id);
+      const saldo_horas = bal ? bal.saldo_minutos / 60 : 0;
+      const salario = parseFloat(e.salario_base) || 0;
+      const valor_hora = salario / 220;
+      return {
+        employee_id: e.id,
+        nome: `${e.nome} ${e.sobrenome}`.trim(),
+        funcao: e.funcao,
+        saldo_horas: Math.round(saldo_horas * 10) / 10,
+        valor_estimado: Math.round(valor_hora * Math.abs(saldo_horas) * 100) / 100,
+        ultimo_calculo: bal?.ultimo_calculo ?? null,
+      };
+    }).filter((e) => e.saldo_horas !== 0);
+  } catch (e) {
+    console.error("[getBancoHorasUnit] exceção:", e);
     return [];
   }
 }

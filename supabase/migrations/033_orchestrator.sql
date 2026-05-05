@@ -1,56 +1,102 @@
-CREATE TABLE hos_jobs (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  description TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now()
+-- Migration 033_orchestrator.sql
+-- Adiciona tabelas para orquestrar as execuções de Agentes de IA e o Human-in-the-loop
+
+-- 1. Tabela de Definição de Jobs
+CREATE TABLE IF NOT EXISTS public.hos_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE hos_runs (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  job_id UUID REFERENCES hos_jobs(id),
-  status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending','running','awaiting_approval','approved','rejected','failed')),
-  triggered_by TEXT NOT NULL DEFAULT 'webhook'
-    CHECK (triggered_by IN ('webhook','cron','discord','manual')),
-  payload JSONB DEFAULT '{}',
-  logs JSONB DEFAULT '[]',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+-- Trigger de updated_at
+CREATE TRIGGER set_hos_jobs_updated_at
+BEFORE UPDATE ON public.hos_jobs
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_updated_at();
+
+-- 2. Tabela de Execuções de um Job (Runs)
+-- Status permitidos: pending, running, awaiting_approval, approved, rejected, failed
+CREATE TABLE IF NOT EXISTS public.hos_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID NOT NULL REFERENCES public.hos_jobs(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payload JSONB DEFAULT '{}'::jsonb, -- Dados iniciais, ex: PR URL, Vercel Preview URL
+    logs JSONB DEFAULT '[]'::jsonb, -- Array de passos/logs executados pelo Agente
+    result_data JSONB DEFAULT '{}'::jsonb, -- Output estruturado do agente, screenshots
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE hos_approvals (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  run_id UUID REFERENCES hos_runs(id),
-  user_id UUID REFERENCES auth.users(id),
-  decision TEXT NOT NULL CHECK (decision IN ('approve','reject')),
-  feedback TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+CREATE INDEX IF NOT EXISTS idx_hos_runs_status ON public.hos_runs(status);
+CREATE INDEX IF NOT EXISTS idx_hos_runs_job_id ON public.hos_runs(job_id);
+
+CREATE TRIGGER set_hos_runs_updated_at
+BEFORE UPDATE ON public.hos_runs
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_updated_at();
+
+-- 3. Tabela de Histórico de Aprovação (Human-in-the-loop)
+CREATE TABLE IF NOT EXISTS public.hos_approvals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id UUID NOT NULL REFERENCES public.hos_runs(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    decision TEXT NOT NULL CHECK (decision IN ('approve', 'reject')),
+    feedback TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE hos_jobs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hos_runs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE hos_approvals ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_hos_approvals_run_id ON public.hos_approvals(run_id);
 
-CREATE POLICY "Admin vê jobs" ON hos_jobs FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('admin','founder','gm'))
-);
-CREATE POLICY "Admin vê runs" ON hos_runs FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('admin','founder','gm'))
-);
-CREATE POLICY "Founder aprova" ON hos_approvals FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('founder','admin'))
-);
+-- Enable RLS
+ALTER TABLE public.hos_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hos_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hos_approvals ENABLE ROW LEVEL SECURITY;
 
-INSERT INTO hos_jobs (name, slug, description) VALUES
-  ('QA Playwright Preview', 'qa_preview', 'Testes automatizados no ambiente de preview'),
-  ('Code Review PR', 'code_review', 'Analisa qualidade do PR antes do merge'),
-  ('Deploy Production', 'deploy_prod', 'Promove preview para produção após aprovação');
+-- Políticas de RLS para Orquestrador (Apenas roles administrativas)
+-- Assumindo que kph_is_founder() e roles existem na estrutura base
+CREATE POLICY "Admins podem ver todos os jobs"
+    ON public.hos_jobs FOR SELECT
+    TO authenticated
+    USING (public.kph_has_role_for_unit(null) OR public.kph_is_founder());
 
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql;
+CREATE POLICY "Admins podem inserir jobs"
+    ON public.hos_jobs FOR INSERT
+    TO authenticated
+    WITH CHECK (public.kph_is_founder());
 
-CREATE TRIGGER runs_updated_at
-  BEFORE UPDATE ON hos_runs
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE POLICY "Admins podem atualizar jobs"
+    ON public.hos_jobs FOR UPDATE
+    TO authenticated
+    USING (public.kph_is_founder());
+
+CREATE POLICY "Admins podem ver todas as execucoes"
+    ON public.hos_runs FOR SELECT
+    TO authenticated
+    USING (public.kph_has_role_for_unit(null) OR public.kph_is_founder());
+
+-- Os agentes podem inserir/atualizar (via service role / rotas backend) então o RLS normal não bloqueia o server.
+-- O painel UI (usuário autenticado) pode atualizar (por exemplo, quando muda o status apos aprovacao)
+CREATE POLICY "Admins podem atualizar execucoes"
+    ON public.hos_runs FOR UPDATE
+    TO authenticated
+    USING (public.kph_has_role_for_unit(null) OR public.kph_is_founder());
+
+CREATE POLICY "Admins podem ver aprovacoes"
+    ON public.hos_approvals FOR SELECT
+    TO authenticated
+    USING (public.kph_has_role_for_unit(null) OR public.kph_is_founder());
+
+CREATE POLICY "Admins podem inserir aprovacoes"
+    ON public.hos_approvals FOR INSERT
+    TO authenticated
+    WITH CHECK (public.kph_has_role_for_unit(null) OR public.kph_is_founder());
+
+-- Seeds de jobs padrao
+INSERT INTO public.hos_jobs (name, slug, description) VALUES
+('Validação QA Playwright', 'qa_preview', 'Agente roda suíte de QA num Vercel Preview URL e aguarda aprovação humana para deploy em produção.'),
+('Code Review', 'code_review', 'Agente faz review de Pull Request e aguarda aprovação.'),
+('Data Analysis', 'data_analysis', 'Agente extrai relatórios gerenciais e aguarda envio.');
