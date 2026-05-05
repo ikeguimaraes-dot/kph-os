@@ -1,9 +1,9 @@
 import { getRunDetails, submitRunDecision } from '@/lib/orquestrador/actions'
 import { redirect } from 'next/navigation'
 
-export default async function RunDetailPage({ params }: { params: { id: string } }) {
-  const run = await getRunDetails(params.id)
-  const runId = params.id
+export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: runId } = await params
+  const run = await getRunDetails(runId)
 
   async function approve(formData: FormData) {
     'use server'
