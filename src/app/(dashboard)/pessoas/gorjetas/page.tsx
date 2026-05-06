@@ -218,16 +218,16 @@ export default function GorjetasPage() {
       log.push(`📋 Aba "${wsName}" · ${rows.length} linhas · Abas: ${wb.SheetNames.join(', ')}`)
       setImportLog([...log])
 
-      // ── Diagnóstico: primeiras 5 linhas ────────────────────────────────────
+      // ── Diagnóstico: primeiras 5 linhas (col 0–9 com índice) ──────────────
+      type Row = (string | number | Date | null)[]
       const preview = rows.slice(0, 5).map((rawRow, i) => {
-        const cells = (rawRow as (string | number | Date | null)[])
-          .slice(0, 8)
-          .map(c => {
-            if (c === null || c === undefined) return '∅'
-            if (c instanceof Date) return c.toISOString().slice(0, 10)
-            return String(c).slice(0, 14)
-          })
-        return `L${i + 1}: ${cells.join(' | ')}`
+        const cells = (rawRow as Row).slice(0, 10).map((c, ci) => {
+          let v = '∅'
+          if (c !== null && c !== undefined)
+            v = c instanceof Date ? c.toISOString().slice(0, 10) : String(c).slice(0, 16)
+          return `[${ci}]${v}`
+        })
+        return `L${i + 1}: ${cells.join(' ')}`
       })
       console.log('=== Estrutura da planilha (5 primeiras linhas) ===')
       preview.forEach(l => console.log(l))
@@ -235,59 +235,80 @@ export default function GorjetasPage() {
       preview.forEach(l => log.push(`  ${l}`))
       setImportLog([...log])
 
-      // ── Parser transposto ──────────────────────────────────────────────────
-      // Estrutura esperada: col 0 = label da métrica, col 1..N = valores por dia
-      // col 1 = dia 1 do período selecionado, col 2 = dia 2, etc.
+      // ── Helper: qualquer valor de célula → YYYY-MM-DD ─────────────────────
+      function toDateStr(v: string | number | Date | null): string | null {
+        if (v === null || v === undefined) return null
+        if (v instanceof Date) return v.toISOString().slice(0, 10)
+        if (typeof v === 'string') {
+          const m = v.match(/(\d{4})-(\d{2})-(\d{2})/)
+          return m ? `${m[1]!}-${m[2]!}-${m[3]!}` : null
+        }
+        if (typeof v === 'number') {
+          try {
+            const d = (XLSX.SSF as any).parse_date_code(v) as { y: number; m: number; d: number }
+            return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+          } catch { return null }
+        }
+        return null
+      }
 
-      type Row = (string | number | Date | null)[]
-
-      const RECEITA_KW = ['VALOR TOTAL', 'RECEITA BRUTA', 'BRUTO', 'RECEITA']
+      // ── Parser: label em col 1, datas/valores em col 2+ ───────────────────
+      // L1: col 1 = "EQUIPE"           → col 2+ = datas ISO (cabeçalho de colunas)
+      // L2: col 1 = "VALOR TOTAL PO…"  → col 2+ = receita bruta por dia
+      // L3: col 1 = "IMPOSTOS"         → ignorado
+      // L4: col 1 = "VALOR TOTAL LÍ…"  → ignorado (líquido derivado)
+      const EQUIPE_KW  = ['EQUIPE']
+      const RECEITA_KW = ['VALOR TOTAL PO', 'RECEITA BRUTA', 'BRUTO', 'VALOR TOTAL']
       const PONTOS_KW  = ['TOTAL DE PONTOS', 'TOTAL PONTOS', 'PONTOS']
-      const SKIP_KW    = ['RETENÇÃO', 'RETENCAO', 'IMPOSTO']
+      const SKIP_KW    = ['IMPOSTO', 'RETENÇ', 'RETENC', 'LÍQUIDO', 'LIQUIDO', 'VALOR TOTAL LÍ']
 
+      let equipRow:   Row | null = null
       let receitaRow: Row | null = null
       let pontosRow:  Row | null = null
 
       for (const rawRow of rows) {
         const r  = rawRow as Row
-        const c0 = String(r[0] ?? '').trim().toUpperCase()
-        if (!c0) continue
-        if (SKIP_KW.some(k => c0.includes(k)))                             continue
-        if (!receitaRow && RECEITA_KW.some(k => c0.includes(k))) { receitaRow = r; continue }
-        if (!pontosRow  && PONTOS_KW.some(k => c0.includes(k)))  { pontosRow  = r; continue }
+        const c1 = String(r[1] ?? '').trim().toUpperCase()
+        if (!c1) continue
+        if (SKIP_KW.some(k => c1.includes(k)))                              continue
+        if (!equipRow   && EQUIPE_KW.some(k =>  c1.includes(k))) { equipRow   = r; continue }
+        if (!receitaRow && RECEITA_KW.some(k => c1.includes(k))) { receitaRow = r; continue }
+        if (!pontosRow  && PONTOS_KW.some(k =>  c1.includes(k))) { pontosRow  = r; continue }
       }
 
       if (!receitaRow) {
         const labels = rows
-          .slice(0, 15)
-          .map(r => String((r as Row)[0] ?? '').trim())
+          .slice(0, 20)
+          .map(r => String((r as Row)[1] ?? '').trim())
           .filter(Boolean)
           .join(' | ')
-        throw new Error(`Linha de receita não encontrada. Labels da coluna A: ${labels}`)
+        throw new Error(`Linha de receita não encontrada. Labels da coluna B: ${labels}`)
       }
 
-      log.push(`✅ Linha receita: "${String(receitaRow[0])}"`)
+      log.push(`✅ Linha receita: "${String(receitaRow[1])}"`)
+      log.push(equipRow
+        ? `✅ Linha datas:   "${String(equipRow[1])}"`
+        : `ℹ️  Linha EQUIPE não encontrada — datas inferidas do período selecionado`)
       log.push(pontosRow
-        ? `✅ Linha pontos: "${String(pontosRow[0])}"`
-        : `ℹ️  Linha de pontos não encontrada — usando 1 como denominador`)
+        ? `✅ Linha pontos:  "${String(pontosRow[1])}"`
+        : `ℹ️  Linha de pontos não encontrada — total_pontos=1 (placeholder)`)
       setImportLog([...log])
 
-      // ── Construir períodos inferindo datas pelo índice de coluna ──────────
-      const diasNoMes = new Date(periodo.ano, periodo.mes, 0).getDate()
+      // ── Construir períodos: col 2+ = um dia cada ───────────────────────────
       const periodoRows: Record<string, unknown>[] = []
 
-      for (let col = 1; col < receitaRow.length; col++) {
-        const dia = col  // col 1 → dia 1, col 2 → dia 2 ...
-        if (dia > diasNoMes) break
+      for (let col = 2; col < receitaRow.length; col++) {
+        const data = equipRow
+          ? toDateStr(equipRow[col] ?? null)
+          : `${periodo.ano}-${String(periodo.mes).padStart(2, '0')}-${String(col - 1).padStart(2, '0')}`
+
+        if (!data) continue
 
         const receita_bruta = Number(receitaRow[col] ?? 0)
         if (isNaN(receita_bruta) || receita_bruta <= 0) continue
 
-        const total_pontos = pontosRow
-          ? (Number(pontosRow[col] ?? 0) || 1)
-          : 1
+        const total_pontos = pontosRow ? (Number(pontosRow[col] ?? 0) || 1) : 1
 
-        const data = `${periodo.ano}-${String(periodo.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
         periodoRows.push({ unit_id: unitId, data, receita_bruta, total_pontos, fonte: 'import' })
       }
 
@@ -302,8 +323,6 @@ export default function GorjetasPage() {
 
       if (pErr) throw new Error(`Erro ao salvar períodos: ${pErr.message}`)
       log.push(`✅ ${periodoRows.length} períodos salvos`)
-      setImportLog([...log])
-
       log.push(`🎉 Importação concluída!`)
       setImportLog([...log])
       load()
