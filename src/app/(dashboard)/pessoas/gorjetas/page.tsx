@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { getBrowserClient } from '@/lib/supabase/client'
+import { useUnit, useSupabase } from '@/lib/auth/context'
 import * as XLSX from 'xlsx'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -62,15 +62,15 @@ function quinzena(dataStr: string): 1 | 2 {
 
 export default function GorjetasPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = getBrowserClient()! as any
+  const sb      = useSupabase()! as any
+  const { unit, units, setUnit } = useUnit()
+  const unitId  = unit?.id ?? null
 
   const [tab, setTab] = useState<'resumo' | 'dias' | 'cargos' | 'importar'>('resumo')
   const [periodo, setPeriodo] = useState<Periodo>(() => {
     const d = new Date()
     return { mes: d.getMonth() + 1, ano: d.getFullYear() }
   })
-  const [unitId, setUnitId] = useState<string>('')
-  const [units, setUnits]   = useState<{ id: string; name: string }[]>([])
   const [kpis,  setKpis]    = useState<KPIs | null>(null)
   const [colaboradores, setColaboradores] = useState<ColaboradorResumo[]>([])
   const [dias,   setDias]   = useState<DiaReceita[]>([])
@@ -82,15 +82,6 @@ export default function GorjetasPage() {
   const [editCargo,  setEditCargo]  = useState<string | null>(null)
   const [editPontos, setEditPontos] = useState<number>(0)
   const fileRef = useRef<HTMLInputElement>(null)
-
-  // ── Carregar unidades ──────────────────────────────────────────────────────
-  useEffect(() => {
-    sb.from('units').select('id,name').order('name')
-      .then(({ data }: { data: { id: string; name: string }[] | null }) => {
-        if (data?.length) { setUnits(data); setUnitId(data[0]!.id) }
-      })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // ── Carregar dados ao mudar filtros ────────────────────────────────────────
   const load = useCallback(async () => {
@@ -160,7 +151,7 @@ export default function GorjetasPage() {
     }
 
     setLoading(false)
-  }, [unitId, periodo, sb])
+  }, [unitId, periodo, sb]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
 
@@ -194,7 +185,7 @@ export default function GorjetasPage() {
         .select('id,cargo,pontos,ativo')
       setCargos((inserted ?? []) as CargoPonto[])
     }
-  }, [unitId, sb])
+  }, [unitId, sb]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (tab === 'cargos') loadCargos() }, [tab, loadCargos])
 
@@ -337,11 +328,10 @@ export default function GorjetasPage() {
         </div>
         <div className="flex items-center gap-3">
           <select
-            value={unitId}
-            onChange={e => setUnitId(e.target.value)}
+            value={unitId ?? ''}
+            onChange={e => setUnit(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
-            {!unitId && <option value="" disabled>Carregando…</option>}
             {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
           <select
