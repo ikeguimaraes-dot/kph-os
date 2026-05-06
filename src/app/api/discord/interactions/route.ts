@@ -22,12 +22,20 @@ export async function POST(req: NextRequest) {
   const timestamp = req.headers.get('x-signature-timestamp') ?? ''
   const publicKey = process.env.DISCORD_PUBLIC_KEY ?? ''
 
+  console.log('[discord/interactions] --- verificação de assinatura ---')
+  console.log('[discord/interactions] x-signature-ed25519:', signature ? `${signature.slice(0, 16)}… (${signature.length} chars)` : '(ausente)')
+  console.log('[discord/interactions] x-signature-timestamp:', timestamp || '(ausente)')
+  console.log('[discord/interactions] DISCORD_PUBLIC_KEY configurada:', !!publicKey, publicKey ? `(${publicKey.length} chars)` : '')
+  console.log('[discord/interactions] rawBody primeiros 100 chars:', rawBody.slice(0, 100))
+  console.log('[discord/interactions] rawBody byte length:', Buffer.byteLength(rawBody, 'utf8'))
+
   if (!publicKey) {
     console.error('[discord/interactions] DISCORD_PUBLIC_KEY não configurada')
     return new Response('Server misconfigured', { status: 500 })
   }
 
   const valid = verifyDiscordSignature(publicKey, signature, timestamp, rawBody)
+  console.log('[discord/interactions] resultado da verificação:', valid)
   if (!valid) {
     return new Response('Invalid request signature', { status: 401 })
   }
