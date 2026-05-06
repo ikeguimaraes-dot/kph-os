@@ -206,88 +206,92 @@ export default function GorjetasPage() {
     setImportLog(['🔄 Lendo arquivo...'])
 
     try {
-      const buf  = await file.arrayBuffer()
-      const wb   = XLSX.read(buf, { type: 'array', cellDates: true })
+      const buf = await file.arrayBuffer()
+      const wb  = XLSX.read(buf, { type: 'array', cellDates: true })
       const log: string[] = ['🔄 Lendo arquivo...']
 
-      // Aba VALORES
+      // ── Aba VALORES ────────────────────────────────────────────────────────
       const wsName = wb.SheetNames.find(n => n.toUpperCase().includes('VALOR')) ?? wb.SheetNames[0]!
       const ws     = wb.Sheets[wsName]!
       const rows   = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null })
 
-      log.push(`📋 Aba "${wsName}" · ${rows.length} linhas`)
+      log.push(`📋 Aba "${wsName}" · ${rows.length} linhas · Abas: ${wb.SheetNames.join(', ')}`)
       setImportLog([...log])
 
-      // Detectar linha de cabeçalho
-      const DATE_KEYWORDS = ['DATA DO DIA','DATA MOV','DATA MOVIMENTO','DATA','DT','DATE','DIA DA SEMANA','DIA','COMPETÊNCIA','COMPETENCIA','PERIODO']
-      let headerRow = -1
-      for (let i = 0; i < Math.min(10, rows.length); i++) {
-        const r = rows[i] as (string | null)[]
-        if (r.some(c => DATE_KEYWORDS.some(k => String(c ?? '').toUpperCase().includes(k)))) {
-          headerRow = i; break
-        }
+      // ── Diagnóstico: primeiras 5 linhas ────────────────────────────────────
+      const preview = rows.slice(0, 5).map((rawRow, i) => {
+        const cells = (rawRow as (string | number | Date | null)[])
+          .slice(0, 8)
+          .map(c => {
+            if (c === null || c === undefined) return '∅'
+            if (c instanceof Date) return c.toISOString().slice(0, 10)
+            return String(c).slice(0, 14)
+          })
+        return `L${i + 1}: ${cells.join(' | ')}`
+      })
+      console.log('=== Estrutura da planilha (5 primeiras linhas) ===')
+      preview.forEach(l => console.log(l))
+      log.push('🔍 Estrutura (5 primeiras linhas):')
+      preview.forEach(l => log.push(`  ${l}`))
+      setImportLog([...log])
+
+      // ── Parser transposto ──────────────────────────────────────────────────
+      // Estrutura esperada: col 0 = label da métrica, col 1..N = valores por dia
+      // col 1 = dia 1 do período selecionado, col 2 = dia 2, etc.
+
+      type Row = (string | number | Date | null)[]
+
+      const RECEITA_KW = ['VALOR TOTAL', 'RECEITA BRUTA', 'BRUTO', 'RECEITA']
+      const PONTOS_KW  = ['TOTAL DE PONTOS', 'TOTAL PONTOS', 'PONTOS']
+      const SKIP_KW    = ['RETENÇÃO', 'RETENCAO', 'IMPOSTO']
+
+      let receitaRow: Row | null = null
+      let pontosRow:  Row | null = null
+
+      for (const rawRow of rows) {
+        const r  = rawRow as Row
+        const c0 = String(r[0] ?? '').trim().toUpperCase()
+        if (!c0) continue
+        if (SKIP_KW.some(k => c0.includes(k)))                             continue
+        if (!receitaRow && RECEITA_KW.some(k => c0.includes(k))) { receitaRow = r; continue }
+        if (!pontosRow  && PONTOS_KW.some(k => c0.includes(k)))  { pontosRow  = r; continue }
       }
 
-      const headers = headerRow >= 0
-        ? (rows[headerRow] as (string | null)[]).map(c => String(c ?? '').trim().toUpperCase())
-        : []
+      if (!receitaRow) {
+        const labels = rows
+          .slice(0, 15)
+          .map(r => String((r as Row)[0] ?? '').trim())
+          .filter(Boolean)
+          .join(' | ')
+        throw new Error(`Linha de receita não encontrada. Labels da coluna A: ${labels}`)
+      }
 
-      console.log('Headers encontrados:', headers)
-
-      if (headerRow < 0)
-        throw new Error(`Cabeçalho de data não encontrado. Colunas disponíveis: ${
-          ((rows[0] ?? []) as (string | null)[]).map(c => String(c ?? '')).join(' | ')
-        }`)
-
-      log.push(`📌 Cabeçalho na linha ${headerRow + 1}: ${headers.slice(0, 6).join(' | ')} ...`)
+      log.push(`✅ Linha receita: "${String(receitaRow[0])}"`)
+      log.push(pontosRow
+        ? `✅ Linha pontos: "${String(pontosRow[0])}"`
+        : `ℹ️  Linha de pontos não encontrada — usando 1 como denominador`)
       setImportLog([...log])
 
-      const colData   = headers.findIndex(h => DATE_KEYWORDS.some(k => h.includes(k)))
-      const colBruto  = headers.findIndex(h => h.includes('BRUT') || h.includes('RECEIT'))
-      const colPontos = headers.findIndex(h => h.includes('PONTO') && !h.includes('VALOR'))
-
-      if (colData < 0 || colBruto < 0)
-        throw new Error(`Colunas não encontradas. Colunas disponíveis: ${headers.join(' | ')}`)
-
+      // ── Construir períodos inferindo datas pelo índice de coluna ──────────
+      const diasNoMes = new Date(periodo.ano, periodo.mes, 0).getDate()
       const periodoRows: Record<string, unknown>[] = []
-      let skipped = 0
 
-      for (let i = headerRow + 1; i < rows.length; i++) {
-        const r = rows[i] as (string | number | Date | null)[]
-        if (!r[colData]) continue
+      for (let col = 1; col < receitaRow.length; col++) {
+        const dia = col  // col 1 → dia 1, col 2 → dia 2 ...
+        if (dia > diasNoMes) break
 
-        const dataVal = r[colData]
-        const dataStr = dataVal instanceof Date
-          ? dataVal.toISOString().slice(0, 10)
-          : (() => {
-              const num = Number(dataVal)
-              if (!isNaN(num) && num > 40000) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const d = (XLSX.SSF as any).parse_date_code(num) as { y: number; m: number; d: number }
-                return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
-              }
-              const parts = String(dataVal).split(/[/\-]/)
-              if (parts.length === 3) {
-                const [p0, p1, p2] = [parts[0]!, parts[1]!, parts[2]!]
-                if (p2.length === 4)
-                  return `${p2}-${p1.padStart(2, '0')}-${p0.padStart(2, '0')}`
-                if (p0.length === 4)
-                  return `${p0}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`
-              }
-              return null
-            })()
+        const receita_bruta = Number(receitaRow[col] ?? 0)
+        if (isNaN(receita_bruta) || receita_bruta <= 0) continue
 
-        if (!dataStr || isNaN(Date.parse(dataStr))) { skipped++; continue }
+        const total_pontos = pontosRow
+          ? (Number(pontosRow[col] ?? 0) || 1)
+          : 1
 
-        const receita_bruta = Number(r[colBruto] ?? 0)
-        if (receita_bruta <= 0) { skipped++; continue }
-
-        const total_pontos = colPontos >= 0 ? (Number(r[colPontos] ?? 0) || 1) : 1
-
-        periodoRows.push({ unit_id: unitId, data: dataStr, receita_bruta, total_pontos, fonte: 'import' })
+        const data = `${periodo.ano}-${String(periodo.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+        periodoRows.push({ unit_id: unitId, data, receita_bruta, total_pontos, fonte: 'import' })
       }
 
-      log.push(`📊 ${periodoRows.length} dias detectados · ${skipped} linhas ignoradas`)
+      log.push(`📊 ${periodoRows.length} dias com receita detectados`)
       setImportLog([...log])
 
       if (!periodoRows.length) throw new Error('Nenhum dia de receita válido encontrado')
@@ -299,18 +303,6 @@ export default function GorjetasPage() {
       if (pErr) throw new Error(`Erro ao salvar períodos: ${pErr.message}`)
       log.push(`✅ ${periodoRows.length} períodos salvos`)
       setImportLog([...log])
-
-      // Aba COLABORADORES (se existir)
-      const wsColab = wb.SheetNames.find(n =>
-        n.toUpperCase().includes('COLAB') ||
-        n.toUpperCase().includes('FUNC')  ||
-        n.toUpperCase().includes('EQUIPE')
-      )
-      if (wsColab) {
-        log.push(`ℹ️  Aba colaboradores detectada — importação detalhada em versão futura`)
-      } else {
-        log.push(`ℹ️  Aba de colaboradores não encontrada — só receitas diárias importadas`)
-      }
 
       log.push(`🎉 Importação concluída!`)
       setImportLog([...log])
