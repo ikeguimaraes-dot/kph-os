@@ -1,9 +1,18 @@
 import { getRunDetails, submitRunDecision } from '@/lib/orquestrador/actions'
+import type { HosApproval } from '@/lib/orquestrador/actions'
 import { redirect } from 'next/navigation'
+
+function isNextError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const digest = (e as { digest?: string }).digest
+  return (
+    typeof digest === 'string' &&
+    (digest.startsWith('NEXT_REDIRECT') || digest.startsWith('DYNAMIC_SERVER_USAGE'))
+  )
+}
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: runId } = await params
-  const run = await getRunDetails(runId)
 
   async function approve(formData: FormData) {
     'use server'
@@ -23,68 +32,97 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     redirect('/orquestrador')
   }
 
-  if (!run) redirect('/orquestrador')
-  const logs = (run.logs ?? []) as Array<{ ts: string; msg: string }>
-  const approvals = ((run as unknown as Record<string, unknown>).hos_approvals ?? []) as Array<{ decision: string; feedback?: string; created_at: string }>
+  try {
+    const run = await getRunDetails(runId)
+    if (!run) redirect('/orquestrador')
 
-  return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">{(run.job as any)?.name}</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          {new Date(run.created_at).toLocaleString('pt-BR')} · via {(run as any).triggered_by ?? '—'} · status: <strong>{run.status}</strong>
-        </p>
-      </div>
+    // Guards: logs pode vir como null do DB ou ter shape diferente (mockCreateRun usa time/message)
+    const rawLogs = Array.isArray(run.logs) ? (run.logs as Array<Record<string, unknown>>) : []
+    const logs = rawLogs.map((log) => ({
+      ts: String(log.ts ?? log.time ?? ''),
+      msg: String(log.msg ?? log.message ?? ''),
+    }))
 
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="text-sm font-semibold mb-2 text-gray-600">Payload</h2>
-        <pre className="text-xs text-gray-700 overflow-auto">{JSON.stringify(run.payload, null, 2)}</pre>
-      </div>
+    const approvals: HosApproval[] = Array.isArray(run.hos_approvals) ? run.hos_approvals : []
 
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="text-sm font-semibold mb-2 text-gray-600">Logs do Agente</h2>
-        <div className="space-y-1">
-          {logs.map((log, i) => (
-            <p key={i} className="text-xs font-mono text-gray-700">
-              <span className="text-gray-400">[{log.ts}]</span> {log.msg}
-            </p>
-          ))}
+    return (
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{run.job?.name ?? '—'}</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            {run.created_at ? new Date(run.created_at).toLocaleString('pt-BR') : '—'} · via {(run as any).triggered_by ?? '—'} · status: <strong>{run.status}</strong>
+          </p>
         </div>
-      </div>
 
-      {run.status === 'awaiting_approval' && (
-        <div className="border rounded-lg p-4 space-y-3">
-          <h2 className="font-semibold">Sua decisão</h2>
-          <div className="flex gap-3">
-            <form action={approve}>
-              <input type="hidden" name="run_id" value={runId} />
-              <input type="hidden" name="feedback" value="" />
-              <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
-                ✅ Aprovar
-              </button>
-            </form>
-            <form action={reject}>
-              <input type="hidden" name="run_id" value={runId} />
-              <input type="hidden" name="feedback" value="" />
-              <button type="submit" className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">
-                ❌ Rejeitar
-              </button>
-            </form>
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-2 text-gray-600">Payload</h2>
+          <pre className="text-xs text-gray-700 overflow-auto">
+            {run.payload != null ? JSON.stringify(run.payload, null, 2) : '—'}
+          </pre>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-2 text-gray-600">Logs do Agente</h2>
+          <div className="space-y-1">
+            {logs.length === 0 ? (
+              <p className="text-xs text-gray-400">Sem logs registrados.</p>
+            ) : (
+              logs.map((log, i) => (
+                <p key={i} className="text-xs font-mono text-gray-700">
+                  {log.ts && <span className="text-gray-400">[{log.ts}]</span>} {log.msg}
+                </p>
+              ))
+            )}
           </div>
         </div>
-      )}
 
-      {approvals.length > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-2">Decisão registrada</h2>
-          {approvals.map((a, i) => (
-            <p key={i} className="text-sm">
-              <strong>{a.decision === 'approve' ? '✅ Aprovado' : '❌ Rejeitado'}</strong>
-              {a.feedback && ` — "${a.feedback}"`}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+        {run.status === 'awaiting_approval' && (
+          <div className="border rounded-lg p-4 space-y-3">
+            <h2 className="font-semibold">Sua decisão</h2>
+            <div className="flex gap-3">
+              <form action={approve}>
+                <input type="hidden" name="run_id" value={runId} />
+                <input type="hidden" name="feedback" value="" />
+                <button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+                  ✅ Aprovar
+                </button>
+              </form>
+              <form action={reject}>
+                <input type="hidden" name="run_id" value={runId} />
+                <input type="hidden" name="feedback" value="" />
+                <button type="submit" className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">
+                  ❌ Rejeitar
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {approvals.length > 0 && (
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h2 className="text-sm font-semibold mb-2">Decisão registrada</h2>
+            {approvals.map((a, i) => (
+              <p key={i} className="text-sm">
+                <strong>{a.decision === 'approve' ? '✅ Aprovado' : '❌ Rejeitado'}</strong>
+                {a.feedback && ` — "${a.feedback}"`}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  } catch (e: unknown) {
+    if (isNextError(e)) throw e
+    const msg = e instanceof Error ? e.message : String(e)
+    const stack = e instanceof Error ? (e.stack ?? '') : ''
+    return (
+      <div className="p-6 space-y-4 max-w-3xl mx-auto">
+        <h1 className="text-red-600 font-bold text-lg">Diagnóstico: erro no render do run</h1>
+        <pre className="text-xs bg-red-50 text-red-900 p-4 rounded overflow-auto whitespace-pre-wrap">{msg}</pre>
+        {stack && (
+          <pre className="text-xs bg-gray-100 text-gray-700 p-4 rounded overflow-auto whitespace-pre-wrap">{stack}</pre>
+        )}
+      </div>
+    )
+  }
 }
