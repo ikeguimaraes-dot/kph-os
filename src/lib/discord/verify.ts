@@ -10,13 +10,18 @@ export function verifyDiscordSignature(
   rawBody: string
 ): boolean {
   try {
+    if (!signature || !timestamp || !publicKey) {
+      console.error('[verifyDiscordSignature] parâmetro ausente — signature:', !!signature, 'timestamp:', !!timestamp, 'publicKey:', !!publicKey)
+      return false
+    }
     const pubKeyDer = Buffer.concat([ED25519_SPKI_HEADER, Buffer.from(publicKey, 'hex')])
     const key = createPublicKey({ key: pubKeyDer, format: 'der', type: 'spki' })
     const message = Buffer.from(timestamp + rawBody)
     const sig = Buffer.from(signature, 'hex')
+    console.log('[verifyDiscordSignature] message byte length:', message.length, '| sig byte length:', sig.length, '| publicKey hex length:', publicKey.length)
     return cryptoVerify(null, message, key, sig)
   } catch (e) {
-    console.error('[verifyDiscordSignature]', e)
+    console.error('[verifyDiscordSignature] erro:', e)
     return false
   }
 }
