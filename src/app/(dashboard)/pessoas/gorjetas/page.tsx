@@ -215,27 +215,36 @@ export default function GorjetasPage() {
       log.push(`📋 Aba "${wsName}" · ${rows.length} linhas`)
       setImportLog([...log])
 
-      // Detectar linha de cabeçalho (contém DATA ou DIA)
+      // Detectar linha de cabeçalho
+      const DATE_KEYWORDS = ['DATA DO DIA','DATA MOV','DATA MOVIMENTO','DATA','DT','DATE','DIA DA SEMANA','DIA','COMPETÊNCIA','COMPETENCIA','PERIODO']
       let headerRow = -1
       for (let i = 0; i < Math.min(10, rows.length); i++) {
         const r = rows[i] as (string | null)[]
-        if (r.some(c => String(c ?? '').toUpperCase().includes('DATA') ||
-                        String(c ?? '').toUpperCase() === 'DIA')) {
+        if (r.some(c => DATE_KEYWORDS.some(k => String(c ?? '').toUpperCase().includes(k)))) {
           headerRow = i; break
         }
       }
-      if (headerRow < 0) throw new Error('Cabeçalho DATA não encontrado na aba VALORES')
 
-      const headers = (rows[headerRow] as (string | null)[]).map(c => String(c ?? '').trim().toUpperCase())
+      const headers = headerRow >= 0
+        ? (rows[headerRow] as (string | null)[]).map(c => String(c ?? '').trim().toUpperCase())
+        : []
+
+      console.log('Headers encontrados:', headers)
+
+      if (headerRow < 0)
+        throw new Error(`Cabeçalho de data não encontrado. Colunas disponíveis: ${
+          ((rows[0] ?? []) as (string | null)[]).map(c => String(c ?? '')).join(' | ')
+        }`)
+
       log.push(`📌 Cabeçalho na linha ${headerRow + 1}: ${headers.slice(0, 6).join(' | ')} ...`)
       setImportLog([...log])
 
-      const colData   = headers.findIndex(h => h.includes('DATA') || h === 'DIA')
+      const colData   = headers.findIndex(h => DATE_KEYWORDS.some(k => h.includes(k)))
       const colBruto  = headers.findIndex(h => h.includes('BRUT') || h.includes('RECEIT'))
       const colPontos = headers.findIndex(h => h.includes('PONTO') && !h.includes('VALOR'))
 
       if (colData < 0 || colBruto < 0)
-        throw new Error(`Colunas não encontradas — DATA:${colData} BRUTO:${colBruto}`)
+        throw new Error(`Colunas não encontradas. Colunas disponíveis: ${headers.join(' | ')}`)
 
       const periodoRows: Record<string, unknown>[] = []
       let skipped = 0
