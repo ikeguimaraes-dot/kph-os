@@ -27,6 +27,7 @@ export type HosRun = {
   result_data: any;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
 };
 
 export type HosRunWithJob = HosRun & {
@@ -57,6 +58,7 @@ export async function listOrchestratorRuns(): Promise<HosRunWithJob[]> {
     const { data, error } = await supabase
       .from("hos_runs")
       .select("*, job:hos_jobs(*)")
+      .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(100);
 
