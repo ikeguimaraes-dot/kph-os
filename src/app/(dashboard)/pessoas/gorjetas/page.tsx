@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUnit, useSupabase } from '@/lib/auth/context'
 import * as XLSX from 'xlsx'
+import { upsertGorjetaPeriodos } from './actions'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -250,11 +251,11 @@ export default function GorjetasPage() {
 
       if (!periodoRows.length) throw new Error('Nenhum dia de receita válido encontrado')
 
-      const { error: pErr } = await sb
-        .from('gorjeta_periodos')
-        .upsert(periodoRows, { onConflict: 'unit_id,data' })
+      const { error: pErr } = await upsertGorjetaPeriodos(
+        periodoRows as { unit_id: string; data: string; receita_bruta: number; total_pontos: number; fonte: string }[]
+      )
 
-      if (pErr) throw new Error(`Erro ao salvar períodos: ${pErr.message}`)
+      if (pErr) throw new Error(`Erro ao salvar períodos: ${pErr}`)
       setImportLog(prev => [...prev, `✅ ${periodoRows.length} períodos salvos no banco`, '🎉 Importação concluída!'])
       load()
     } catch (err: unknown) {
