@@ -286,21 +286,21 @@ export default function GorjetasPage() {
           <select
             value={unitId ?? ''}
             onChange={e => setUnit(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
             {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
           <select
             value={periodo.mes}
             onChange={e => setPeriodo(p => ({ ...p, mes: Number(e.target.value) }))}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
           <select
             value={periodo.ano}
             onChange={e => setPeriodo(p => ({ ...p, ano: Number(e.target.value) }))}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
             {[2024, 2025, 2026].map(a => <option key={a} value={a}>{a}</option>)}
           </select>
@@ -316,7 +316,7 @@ export default function GorjetasPage() {
             { label: 'Valor Médio Ponto', value: `R$ ${fmtN(kpis.valorPontoMedio)}`, sub: 'por ponto/dia' },
             { label: 'Colaboradores',     value: String(kpis.totalColaboradores),   sub: 'na distribuição' },
           ].map(k => (
-            <div key={k.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <div key={k.label} className="bg-card rounded-xl border border-border p-4 shadow-sm">
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{k.label}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{k.value}</p>
               <p className="text-xs text-gray-400 mt-0.5">{k.sub}</p>
@@ -332,7 +332,7 @@ export default function GorjetasPage() {
             { label: '1ª Quinzena', value: kpis.quinzena1Liquido, range: '1–15'  },
             { label: '2ª Quinzena', value: kpis.quinzena2Liquido, range: '16–31' },
           ].map(q => (
-            <div key={q.label} className="bg-indigo-50 rounded-xl border border-indigo-100 px-5 py-4 flex justify-between items-center">
+            <div key={q.label} className="bg-indigo-950/40 rounded-xl border border-indigo-800/50 px-5 py-4 flex justify-between items-center">
               <div>
                 <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">{q.label}</p>
                 <p className="text-xs text-indigo-400 mt-0.5">Dias {q.range}</p>
@@ -372,7 +372,7 @@ export default function GorjetasPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar por nome ou cargo…"
-            className="w-full sm:w-80 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="w-full sm:w-80 text-sm border border-border rounded-lg px-3 py-2 bg-background text-foreground focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           />
           {loading ? (
             <div className="text-center py-12 text-gray-400 text-sm">Carregando…</div>
@@ -382,7 +382,7 @@ export default function GorjetasPage() {
               Importe um Excel ou aguarde integração Lorean.
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
@@ -393,7 +393,7 @@ export default function GorjetasPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {colabFiltrado.map((c, i) => (
-                    <tr key={c.employee_id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                    <tr key={c.employee_id} className={i % 2 === 0 ? 'bg-white' : 'bg-muted/30'}>
                       <td className="px-4 py-3 font-medium text-gray-900">{c.nome}</td>
                       <td className="px-4 py-3 text-gray-500">{c.cargo}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{c.dias_presentes}</td>
@@ -420,7 +420,7 @@ export default function GorjetasPage() {
 
       {/* ── Tab: Por Dia ── */}
       {tab === 'dias' && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
           {loading ? (
             <div className="text-center py-12 text-gray-400 text-sm">Carregando…</div>
           ) : !dias.length ? (
@@ -436,7 +436,7 @@ export default function GorjetasPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {dias.map((d, i) => (
-                  <tr key={d.data} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                  <tr key={d.data} className={i % 2 === 0 ? 'bg-white' : 'bg-muted/30'}>
                     <td className="px-4 py-3 font-medium text-gray-900">
                       {new Date(d.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
                       <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
@@ -464,7 +464,7 @@ export default function GorjetasPage() {
 
       {/* ── Tab: Pontos por Cargo ── */}
       {tab === 'cargos' && (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-sm text-gray-500">Configuração de pontos por cargo · afeta cálculos futuros</p>
           </div>
@@ -503,7 +503,7 @@ export default function GorjetasPage() {
                         >Salvar</button>
                         <button
                           onClick={() => setEditCargo(null)}
-                          className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition"
+                          className="text-xs bg-muted text-muted-foreground px-3 py-1.5 rounded-lg hover:bg-muted/80 transition"
                         >Cancelar</button>
                       </div>
                     ) : (
@@ -558,7 +558,7 @@ export default function GorjetasPage() {
             </div>
           )}
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-amber-950/30 border border-amber-800/50 rounded-xl p-4">
             <p className="text-xs font-semibold text-amber-800 mb-2">📋 Formato esperado</p>
             <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
               <li>Aba chamada <strong>VALORES</strong> (ou similar)</li>
