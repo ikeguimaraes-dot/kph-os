@@ -267,7 +267,7 @@ export default function GorjetasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Gorjetas</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Gorjetas</h1>
           <p className="text-sm text-gray-500 mt-0.5">Sistema de pontos por dia · distribuição diária</p>
         </div>
         <div className="flex items-center gap-3">
@@ -305,9 +305,9 @@ export default function GorjetasPage() {
             { label: 'Colaboradores',     value: String(kpis.totalColaboradores),   sub: 'na distribuição' },
           ].map(k => (
             <div key={k.label} className="bg-card rounded-xl border border-border p-4 shadow-sm">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{k.label}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{k.value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{k.sub}</p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{k.label}</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{k.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{k.sub}</p>
             </div>
           ))}
         </div>
@@ -322,10 +322,10 @@ export default function GorjetasPage() {
           ].map(q => (
             <div key={q.label} className="bg-indigo-950/40 rounded-xl border border-indigo-800/50 px-5 py-4 flex justify-between items-center">
               <div>
-                <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">{q.label}</p>
+                <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wide">{q.label}</p>
                 <p className="text-xs text-indigo-400 mt-0.5">Dias {q.range}</p>
               </div>
-              <p className="text-xl font-bold text-indigo-700">{fmt(q.value)}</p>
+              <p className="text-xl font-bold text-indigo-300">{fmt(q.value)}</p>
             </div>
           ))}
         </div>
