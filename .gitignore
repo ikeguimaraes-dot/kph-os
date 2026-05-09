@@ -45,3 +45,4 @@ scripts/etl-output.json
 scripts/_*.ts
 .next 2/
 ref_system/
+.env*.local

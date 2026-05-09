@@ -1,6 +1,8 @@
 import Link from "next/link";
 import {
   CalendarClock, Clock3, Receipt, ShieldAlert, UserCog, ArrowUpRight,
+  ClipboardList, Timer, UserMinus, FileText, Palmtree, PieChart,
+  Coins, Bus, UploadCloud, Star, GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth/server";
@@ -13,41 +15,143 @@ type SubModule = {
   status: "em-construcao" | "ativo";
 };
 
-const SUB_MODULES: ReadonlyArray<SubModule> = [
+type Category = {
+  title: string;
+  items: SubModule[];
+};
+
+const CATEGORIES: ReadonlyArray<Category> = [
   {
-    href: "/pessoas/colaboradores",
-    label: "Colaboradores",
-    desc: "Cadastro completo eSocial: CPF, RG, PIS, CTPS, endereço, dependentes.",
-    icon: UserCog,
-    status: "ativo",
+    title: "Gestão de Jornada & Escala",
+    items: [
+      {
+        href: "/pessoas/ponto",
+        label: "Ponto",
+        desc: "PWA com câmera + geolocalização. Aprovação pelo gerente.",
+        icon: Clock3,
+        status: "ativo",
+      },
+      {
+        href: "/pessoas/relatorio-ponto",
+        label: "Relatório de Ponto",
+        desc: "Espelho de ponto, inconsistências e fechamento.",
+        icon: ClipboardList,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/escala",
+        label: "Escala",
+        desc: "Drag-and-drop denso, labor cost realtime ao mover turno.",
+        icon: CalendarClock,
+        status: "ativo",
+      },
+      {
+        href: "/pessoas/horas-extras",
+        label: "Horas Extras",
+        desc: "Acompanhamento e aprovação de horas adicionais.",
+        icon: Timer,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/faltas",
+        label: "Faltas",
+        desc: "Registro e justificativa de ausências e atrasos.",
+        icon: UserMinus,
+        status: "em-construcao",
+      },
+    ],
   },
   {
-    href: "/pessoas/escala",
-    label: "Escala",
-    desc: "Drag-and-drop denso, labor cost realtime ao mover turno.",
-    icon: CalendarClock,
-    status: "ativo",
+    title: "Gestão de Pessoal",
+    items: [
+      {
+        href: "/pessoas/colaboradores",
+        label: "Colaboradores",
+        desc: "Cadastro completo eSocial: CPF, RG, PIS, CTPS, endereço.",
+        icon: UserCog,
+        status: "ativo",
+      },
+      {
+        href: "/pessoas/documentos",
+        label: "Documentos",
+        desc: "Gestão de contratos, exames admissionais e atestados.",
+        icon: FileText,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/ferias",
+        label: "Férias",
+        desc: "Controle de períodos aquisitivos e concessão.",
+        icon: Palmtree,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/headcount",
+        label: "Headcount",
+        desc: "Visão geral do quadro de vagas e turnover.",
+        icon: PieChart,
+        status: "em-construcao",
+      },
+    ],
   },
   {
-    href: "/pessoas/holerites",
-    label: "Holerites",
-    desc: "Cálculo CLT + Sinthoresp + DSR sobre gorjeta. PDF on-demand.",
-    icon: Receipt,
-    status: "ativo",
+    title: "Financeiro & Remuneração",
+    items: [
+      {
+        href: "/pessoas/holerites",
+        label: "Holerites",
+        desc: "Cálculo CLT + Sinthoresp + DSR sobre gorjeta. PDF on-demand.",
+        icon: Receipt,
+        status: "ativo",
+      },
+      {
+        href: "/pessoas/gorjetas",
+        label: "Gorjetas",
+        desc: "Rateio de taxas de serviço e caixinha.",
+        icon: Coins,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/vale-transporte",
+        label: "Vale Transporte",
+        desc: "Gestão de rotas e integração com operadoras.",
+        icon: Bus,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/importacao",
+        label: "Importação",
+        desc: "Importação de dados de folha e sistemas legados.",
+        icon: UploadCloud,
+        status: "em-construcao",
+      },
+    ],
   },
   {
-    href: "/pessoas/disciplina",
-    label: "Score & Disciplina",
-    desc: "Advertências verbal/escrita/suspensão + faltas tipadas + score gamificado.",
-    icon: ShieldAlert,
-    status: "ativo",
-  },
-  {
-    href: "/pessoas/ponto",
-    label: "Ponto",
-    desc: "PWA com câmera + geolocalização. Aprovação pelo gerente.",
-    icon: Clock3,
-    status: "ativo",
+    title: "Desenvolvimento & Performance",
+    items: [
+      {
+        href: "/pessoas/avaliacoes",
+        label: "Avaliações",
+        desc: "Avaliação de desempenho e feedback contínuo.",
+        icon: Star,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/treinamentos",
+        label: "Treinamentos",
+        desc: "Capacitação, certificações e onboarding.",
+        icon: GraduationCap,
+        status: "em-construcao",
+      },
+      {
+        href: "/pessoas/disciplina",
+        label: "Score & Disciplina",
+        desc: "Advertências verbal/escrita/suspensão + faltas tipadas.",
+        icon: ShieldAlert,
+        status: "ativo",
+      },
+    ],
   },
 ];
 
@@ -55,124 +159,75 @@ export default async function PessoasPage() {
   const user = await requireUser();
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-      <header style={{ marginBottom: 28 }}>
-        <div
-          style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: 1.6,
-            textTransform: "uppercase", color: "var(--brand)",
-          }}
-        >
-          Fase 1 · Em construção
+    <div className="mx-auto max-w-[1200px]">
+      <header className="mb-10">
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-[1.6px] text-[var(--brand)]">
+          Visão Geral
         </div>
-        <h1
-          style={{
-            fontSize: 30, fontWeight: 700, margin: "8px 0 6px",
-            color: "var(--text)", letterSpacing: -0.5,
-          }}
-        >
+        <h1 className="mb-3 text-[32px] font-bold tracking-[-0.5px] text-[var(--text)]">
           Pessoas
         </h1>
-        <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, maxWidth: 640 }}>
-          Escala, ponto, holerite e cadastro de colaboradores. Todo o módulo é
+        <p className="max-w-[720px] text-[14px] leading-[1.6] text-[var(--text-2)]">
+          Gestão completa do ciclo de vida dos colaboradores. Todo o módulo é
           unit-scoped — você só vê dados da unidade selecionada na sidebar.
-          Schema base já existe no Supabase: {" "}
-          <code
-            style={{
-              fontFamily: "var(--font-geist-mono), monospace",
-              fontSize: 11, color: "var(--brand)",
-            }}
-          >
-            employees, shifts, time_clock_punches, time_bank_balance, payslips, cct_versions
-          </code>.
+          Schema base já existe no Supabase para escalabilidade e segurança.
         </p>
       </header>
 
-      <div
-        style={{
-          display: "grid", gap: 14,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        }}
-      >
-        {SUB_MODULES.map((m) => {
-          const Icon = m.icon;
-          return (
-            <Link
-              key={m.href}
-              href={m.href}
-              style={{
-                position: "relative",
-                padding: "20px 18px",
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                textDecoration: "none",
-                color: "var(--text)",
-                transition: "border-color var(--t), background var(--t)",
-                display: "flex", flexDirection: "column", gap: 10,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{
-                    width: 32, height: 32, borderRadius: 8,
-                    background: "var(--brand-soft)", color: "var(--brand)",
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={16} />
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{m.label}</span>
-                <ArrowUpRight
-                  size={14}
-                  style={{ marginLeft: "auto", color: "var(--text-3)" }}
-                />
-              </div>
-              <p
-                style={{
-                  margin: 0, fontSize: 12, color: "var(--text-3)", lineHeight: 1.55,
-                }}
-              >
-                {m.desc}
-              </p>
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 9, fontWeight: 700,
-                  letterSpacing: 0.8, textTransform: "uppercase",
-                  color: m.status === "ativo" ? "#22C55E" : "var(--text-3)",
-                }}
-              >
-                {m.status === "ativo" ? "Ativo" : "Em construção"}
-              </div>
-            </Link>
-          );
-        })}
+      <div className="flex flex-col gap-12">
+        {CATEGORIES.map((category) => (
+          <section key={category.title}>
+            <h2 className="mb-5 flex items-center gap-2 text-[18px] font-semibold text-[var(--text)]">
+              <div className="h-4 w-1 rounded-[2px] bg-[var(--brand)]" />
+              {category.title}
+            </h2>
+            
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {category.items.map((m) => {
+                const Icon = m.icon;
+                return (
+                  <Link
+                    key={m.href}
+                    href={m.href}
+                    className="group relative flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--text)] no-underline transition-all duration-200 hover:-translate-y-[2px] hover:border-[var(--brand-soft)] hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)]">
+                          <Icon size={18} />
+                        </span>
+                        <span className="text-[15px] font-semibold">{m.label}</span>
+                      </div>
+                      <ArrowUpRight
+                        size={16}
+                        className="text-[var(--text-3)] transition-transform duration-200 group-hover:translate-x-[2px] group-hover:-translate-y-[2px] group-hover:text-[var(--brand)]"
+                      />
+                    </div>
+                    <p className="m-0 flex-1 text-[13px] leading-[1.5] text-[var(--text-2)]">
+                      {m.desc}
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.8px]">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: m.status === "ativo" ? "#22C55E" : "var(--text-3)" }}
+                      />
+                      <span style={{ color: m.status === "ativo" ? "#22C55E" : "var(--text-3)" }}>
+                        {m.status === "ativo" ? "Ativo" : "Em construção"}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
 
-      <footer
-        style={{
-          marginTop: 36, padding: "18px 20px",
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: 12, fontSize: 12, color: "var(--text-2)", lineHeight: 1.6,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
-            color: "var(--text-3)", marginBottom: 6,
-          }}
-        >
-          Acesso
+      <footer className="mt-16 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-6 py-5 text-[13px] leading-[1.6] text-[var(--text-2)]">
+        <div className="mb-2 text-[11px] font-bold uppercase tracking-[1px] text-[var(--text-3)]">
+          Acesso & Segurança
         </div>
-        Logado como{" "}
-        <span style={{ color: "var(--text)", fontWeight: 600 }}>{user.email}</span>{" "}
-        com role{" "}
-        <span style={{ color: "var(--brand)", fontWeight: 600 }}>
-          {user.roles[0]?.role ?? "—"}
-        </span>
-        . RLS aplica unit-scope automaticamente em todas as queries.
+        Logado como <span className="font-semibold text-[var(--text)]">{user.email}</span> com role <span className="font-semibold text-[var(--brand)]">{user.roles[0]?.role ?? "—"}</span>. RLS aplica unit-scope automaticamente em todas as queries no Supabase.
       </footer>
     </div>
   );

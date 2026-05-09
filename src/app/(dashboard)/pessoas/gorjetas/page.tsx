@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUnit, useSupabase } from '@/lib/auth/context'
 import * as XLSX from 'xlsx'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { upsertGorjetaPeriodos, fetchGorjetasDados, fetchGorjetaCargos, saveGorjetaCargo } from './actions'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export default function GorjetasPage() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const [tab, setTab] = useState<'resumo' | 'dias' | 'cargos' | 'importar'>('resumo')
+  const [tab, setTab] = useState<'resumo' | 'dias' | 'cargos' | 'analise' | 'importar'>('resumo')
   const [periodo, setPeriodo] = useState<Periodo>(() => {
     const d = new Date()
     return { mes: d.getMonth() + 1, ano: d.getFullYear() }
@@ -309,7 +310,7 @@ export default function GorjetasPage() {
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="flex gap-6">
-          {(['resumo', 'dias', 'cargos', 'importar'] as const).map(t => (
+          {(['resumo', 'dias', 'cargos', 'analise', 'importar'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -321,7 +322,8 @@ export default function GorjetasPage() {
             >
               {t === 'resumo'    ? 'Por Colaborador'
                : t === 'dias'   ? 'Por Dia'
-               : t === 'cargos' ? 'Pontos por Cargo'
+               : t === 'cargos'  ? 'Pontos por Cargo'
+               : t === 'analise' ? 'Análise'
                :                  'Importar Excel'}
             </button>
           ))}
@@ -484,6 +486,79 @@ export default function GorjetasPage() {
       )}
 
       {/* ── Tab: Importar Excel ── */}
+
+      {/* ── Tab: Análise ── */}
+      {tab === 'analise' && (
+        <div className="space-y-4">
+          {!dias.length ? (
+            <div className="bg-card rounded-xl border border-border text-center py-12 text-muted-foreground text-sm">
+              Sem dados para o período. Importe um Excel ou aguarde integração Lorean.
+            </div>
+          ) : (
+            <>
+              {/* Médias do período */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Média Diária Bruta',   value: fmt(dias.reduce((s,d) => s + d.receita_bruta,   0) / dias.length) },
+                  { label: 'Média Diária Líquida',  value: fmt(dias.reduce((s,d) => s + d.receita_liquida, 0) / dias.length) },
+                  { label: 'Melhor Dia (Líquido)',  value: fmt(Math.max(...dias.map(d => d.receita_liquida))) },
+                ].map(k => (
+                  <div key={k.label} className="bg-card rounded-xl border border-border p-4">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{k.label}</p>
+                    <p className="text-xl font-bold text-foreground mt-1">{k.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Gráfico de barras — Receita por Dia */}
+              <div className="bg-card rounded-xl border border-border p-5">
+                <p className="text-sm font-semibold text-foreground mb-4">Receita por Dia</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={dias} margin={{ top: 4, right: 8, left: 8, bottom: 48 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis
+                      dataKey="data"
+                      tickFormatter={d => new Date(d + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      angle={-45}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => fmt(v)}
+                      labelFormatter={d => new Date(d + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                      contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+                    <Bar dataKey="receita_bruta"   name="Bruta"   fill="#6366f1" radius={[4,4,0,0]} />
+                    <Bar dataKey="receita_liquida" name="Líquida" fill="#a5b4fc" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Comparativo quinzenas */}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { label: '1ª Quinzena', value: kpis?.quinzena1Liquido ?? 0, dias: dias.filter(d => new Date(d.data+'T12:00').getDate() <= 15).length },
+                  { label: '2ª Quinzena', value: kpis?.quinzena2Liquido ?? 0, dias: dias.filter(d => new Date(d.data+'T12:00').getDate() >  15).length },
+                ].map(q => (
+                  <div key={q.label} className="bg-card rounded-xl border border-border p-4 flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{q.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{q.dias} dia{q.dias !== 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-xl font-bold text-indigo-400">{fmt(q.value)}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {tab === 'importar' && (
         <div className="space-y-6">
           <div
