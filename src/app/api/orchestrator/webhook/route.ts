@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
   }
 
   const event = type ?? body.event
+
+  if (event !== 'deployment.succeeded') {
+    return Response.json({ ignored: true, reason: `evento ${event} ignorado` })
+  }
   const deployment_url = payload?.url ? `https://${payload.url}` : body.deployment_url
   const triggered_by = 'webhook'
 
