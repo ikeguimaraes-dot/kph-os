@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUnit, useSupabase } from '@/lib/auth/context'
 import * as XLSX from 'xlsx'
-import { upsertGorjetaPeriodos, fetchGorjetasDados } from './actions'
+import { upsertGorjetaPeriodos, fetchGorjetasDados, fetchGorjetaCargos, saveGorjetaCargo } from './actions'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -150,39 +150,14 @@ export default function GorjetasPage() {
   // ── Cargos ────────────────────────────────────────────────────────────────
   const loadCargos = useCallback(async () => {
     if (!unitId) return
-
-    const { data: unitCargos } = await sb
-      .from('gorjeta_cargo_pontos')
-      .select('id,cargo,pontos,ativo')
-      .eq('unit_id', unitId)
-      .order('cargo')
-
-    if (unitCargos?.length) {
-      setCargos(unitCargos as CargoPonto[])
-      return
-    }
-
-    // Copiar templates globais para a unidade
-    const { data: templates } = await sb
-      .from('gorjeta_cargo_pontos')
-      .select('cargo,pontos')
-      .is('unit_id', null)
-
-    if (templates?.length) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows = (templates as any[]).map((t) => ({ unit_id: unitId, cargo: t.cargo, pontos: t.pontos }))
-      const { data: inserted } = await sb
-        .from('gorjeta_cargo_pontos')
-        .insert(rows)
-        .select('id,cargo,pontos,ativo')
-      setCargos((inserted ?? []) as CargoPonto[])
-    }
-  }, [unitId, sb]) // eslint-disable-line react-hooks/exhaustive-deps
+    const data = await fetchGorjetaCargos(unitId)
+    setCargos(data as CargoPonto[])
+  }, [unitId])
 
   useEffect(() => { if (tab === 'cargos') loadCargos() }, [tab, loadCargos])
 
   async function saveCargo(id: string, pontos: number) {
-    await sb.from('gorjeta_cargo_pontos').update({ pontos }).eq('id', id)
+    await saveGorjetaCargo(id, pontos)
     setEditCargo(null)
     loadCargos()
   }
