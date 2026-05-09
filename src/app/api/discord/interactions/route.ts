@@ -68,6 +68,11 @@ export async function POST(req: NextRequest) {
       return json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: '❌ Comando desconhecido.', flags: EPHEMERAL } })
     }
 
+    if (commandName === 'aprovar') {
+      console.log('[aprovar] run_id recebido:', runId)
+      console.log('[aprovar] options completo:', JSON.stringify(body.data?.options))
+    }
+
     if (!runId) {
       return json({ type: CHANNEL_MESSAGE_WITH_SOURCE, data: { content: '❌ Informe o `run_id`.', flags: EPHEMERAL } })
     }
