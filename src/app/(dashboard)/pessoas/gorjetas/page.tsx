@@ -528,7 +528,7 @@ export default function GorjetasPage() {
                       tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                     />
                     <Tooltip
-                      formatter={(v: number) => fmt(v)}
+                      formatter={(v) => fmt(Number(v))}
                       labelFormatter={d => new Date(d + 'T12:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
                       contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                     />
