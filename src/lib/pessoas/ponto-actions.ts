@@ -18,7 +18,7 @@
 //   2) authz → esse user é dono do employeeId OU tem role na unit dele?
 //   3) só então service_role insere
 
-import { createServiceClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/server";
 import type { ActionResult } from "@/lib/result";
 import type { PunchTipo, TimeClockPunch } from "@/types/pessoas";
