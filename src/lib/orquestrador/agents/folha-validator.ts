@@ -10,16 +10,12 @@ interface Anomalia {
 }
 
 function detectarAnomalias(
-  payslip: {
-    salario_base: string
-    liquido: string
-  },
+  base: number,
+  liquido: number,
   empSalarioBase: number,
   empAtivo: boolean
 ): Anomalia[] {
   const anomalias: Anomalia[] = []
-  const base = parseFloat(payslip.salario_base)
-  const liquido = parseFloat(payslip.liquido)
 
   if (liquido <= 0) {
     anomalias.push({
@@ -72,11 +68,8 @@ export async function runFolhaValidator(): Promise<{ created: number }> {
 
   if (!job) throw new Error('Job folha_validator não encontrado')
 
-  // Primeiro dia do mês atual
-  const agora = new Date()
-  const competencia = new Date(agora.getFullYear(), agora.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10)
+  const now = new Date()
+  const competencia = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
 
   // Holerites rascunho do mês atual com dados do colaborador
   const { data: payslips, error } = await (supabase as any)
@@ -90,7 +83,7 @@ export async function runFolhaValidator(): Promise<{ created: number }> {
       employee:employees(nome, sobrenome, funcao, salario_base, ativo, unit:units(name))
     `)
     .eq('status', 'rascunho')
-    .eq('competencia', competencia)
+    .eq('competencia', `${competencia}-01`)
 
   if (error) throw new Error(error.message)
 
@@ -114,18 +107,24 @@ export async function runFolhaValidator(): Promise<{ created: number }> {
     const emp = payslip.employee
     if (!emp) continue
 
+    const base = parseFloat(payslip.salario_base)
+    const liquido = parseFloat(payslip.liquido)
+    if (isNaN(base) || isNaN(liquido)) {
+      console.error(`[folha-validator] Valor inválido para employee ${payslip.employee_id}`)
+      continue
+    }
+
     const nomeCompleto = [emp.nome, emp.sobrenome].filter(Boolean).join(' ')
     const unidade = emp.unit?.name ?? 'N/A'
     const empSalarioBase = parseFloat(emp.salario_base ?? '0')
-    const competenciaFormatada = competencia.slice(0, 7) // YYYY-MM
 
-    const anomalias = detectarAnomalias(payslip, empSalarioBase, emp.ativo ?? true)
+    const anomalias = detectarAnomalias(base, liquido, empSalarioBase, emp.ativo ?? true)
 
     for (const anomalia of anomalias) {
       const dedupeKey = `${payslip.employee_id}::${competencia}::${anomalia.tipo}`
       if (openKeys.has(dedupeKey)) continue
 
-      const title = `⚠️ Folha ${competenciaFormatada} — ${nomeCompleto}: ${anomalia.descricao}`
+      const title = `⚠️ Folha ${competencia} — ${nomeCompleto}: ${anomalia.descricao}`
 
       const { error: insertErr } = await (supabase as any)
         .from('hos_runs')
@@ -149,7 +148,9 @@ export async function runFolhaValidator(): Promise<{ created: number }> {
           logs: [{ ts: new Date().toISOString(), msg: title }],
         })
 
-      if (!insertErr) {
+      if (insertErr) {
+        console.error('[folha-validator] Erro ao criar run:', insertErr.message)
+      } else {
         openKeys.add(dedupeKey)
         created++
       }
