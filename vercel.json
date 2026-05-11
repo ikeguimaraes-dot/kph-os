@@ -6,6 +6,10 @@
     {
       "path": "/api/orchestrator/escalate",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/orchestrator/cron/compliance",
+      "schedule": "0 8 * * *"
     }
   ]
 }
