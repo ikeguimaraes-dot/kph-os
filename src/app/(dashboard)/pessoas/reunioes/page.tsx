@@ -4,21 +4,24 @@ import { Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/server";
 import { getCurrentUnit } from "@/lib/auth/unit";
-import { getEmployeeByUser, listPdis } from "./actions";
-import { PdiListClient } from "./pdi-list-client";
+import { listReunioes, listGestoresEColaboradores, type ReuniaoFilters } from "./actions";
+import { ReunioesClient } from "./reunioes-client";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 20;
-
-export default async function PdiPage({
+export default async function ReunioesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    gestor_id?: string;
+    colaborador_id?: string;
+    periodo_inicio?: string;
+    periodo_fim?: string;
+  }>;
 }) {
   await requireUser();
-  const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const params = await searchParams;
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto" }}>
@@ -42,7 +45,7 @@ export default async function PdiPage({
               color: "var(--text-3)",
             }}
           >
-            Pessoas · PDI
+            Pessoas · Reuniões
           </div>
           <h1
             style={{
@@ -53,18 +56,18 @@ export default async function PdiPage({
               letterSpacing: -0.4,
             }}
           >
-            Plano de Desenvolvimento Individual
+            Reuniões 1:1
           </h1>
           <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0, maxWidth: 580 }}>
-            Acompanhe suas metas de desenvolvimento e evolua com foco.
+            Acompanhe as reuniões individuais entre gestores e colaboradores.
           </p>
         </div>
         <Link
-          href="/pessoas/pdi/novo"
+          href="/pessoas/reunioes/nova"
           className={buttonVariants({ variant: "default" })}
         >
           <Plus size={15} style={{ marginRight: 6 }} />
-          Novo PDI
+          Agendar Reunião
         </Link>
       </header>
 
@@ -73,13 +76,17 @@ export default async function PdiPage({
           <div style={{ color: "var(--text-3)", fontSize: 13 }}>Carregando…</div>
         }
       >
-        <PdiSection page={page} />
+        <ReunioesSection params={params} />
       </Suspense>
     </div>
   );
 }
 
-async function PdiSection({ page }: { page: number }) {
+async function ReunioesSection({
+  params,
+}: {
+  params: ReuniaoFilters;
+}) {
   const unit = await getCurrentUnit();
 
   if (!unit) {
@@ -95,40 +102,21 @@ async function PdiSection({ page }: { page: number }) {
           fontSize: 13,
         }}
       >
-        Selecione uma unit no menu para ver os PDIs.
+        Selecione uma unit no menu para ver as reuniões.
       </div>
     );
   }
 
-  const user = await requireUser();
-  const myEmployee = await getEmployeeByUser(user.id, unit.id);
-
-  const pdiPage = myEmployee ? await listPdis(myEmployee.id, page, PAGE_SIZE) : null;
+  const [reunioes, employees] = await Promise.all([
+    listReunioes(unit.id, params),
+    listGestoresEColaboradores(unit.id),
+  ]);
 
   return (
-    <>
-      {!myEmployee && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "rgba(245,158,11,0.10)",
-            border: "1px solid rgba(245,158,11,0.35)",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#A16207",
-            marginBottom: 16,
-          }}
-        >
-          Seu usuário não está vinculado a um colaborador nesta unit. PDIs não podem ser exibidos ou criados.
-        </div>
-      )}
-      <PdiListClient
-        pdis={pdiPage?.data ?? []}
-        hasEmployee={!!myEmployee}
-        page={page}
-        totalPages={pdiPage?.totalPages ?? 1}
-        count={pdiPage?.count ?? 0}
-      />
-    </>
+    <ReunioesClient
+      reunioes={reunioes}
+      employees={employees}
+      activeFilters={params}
+    />
   );
 }

@@ -4,21 +4,18 @@ import { Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/server";
 import { getCurrentUnit } from "@/lib/auth/unit";
-import { getEmployeeByUser, listPdis } from "./actions";
-import { PdiListClient } from "./pdi-list-client";
+import { listOnboardingRuns, type RunStatus } from "./actions";
+import { OnboardingClient } from "./onboarding-client";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 20;
-
-export default async function PdiPage({
+export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
   await requireUser();
-  const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const { status: statusParam } = await searchParams;
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto" }}>
@@ -42,7 +39,7 @@ export default async function PdiPage({
               color: "var(--text-3)",
             }}
           >
-            Pessoas · PDI
+            Pessoas · Onboarding
           </div>
           <h1
             style={{
@@ -53,19 +50,27 @@ export default async function PdiPage({
               letterSpacing: -0.4,
             }}
           >
-            Plano de Desenvolvimento Individual
+            Onboarding
           </h1>
           <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0, maxWidth: 580 }}>
-            Acompanhe suas metas de desenvolvimento e evolua com foco.
+            Acompanhe o processo de integração dos novos colaboradores.
           </p>
         </div>
-        <Link
-          href="/pessoas/pdi/novo"
-          className={buttonVariants({ variant: "default" })}
-        >
-          <Plus size={15} style={{ marginRight: 6 }} />
-          Novo PDI
-        </Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link
+            href="/pessoas/onboarding/templates"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Templates
+          </Link>
+          <Link
+            href="/pessoas/onboarding/novo"
+            className={buttonVariants({ variant: "default" })}
+          >
+            <Plus size={15} style={{ marginRight: 6 }} />
+            Novo Onboarding
+          </Link>
+        </div>
       </header>
 
       <Suspense
@@ -73,13 +78,13 @@ export default async function PdiPage({
           <div style={{ color: "var(--text-3)", fontSize: 13 }}>Carregando…</div>
         }
       >
-        <PdiSection page={page} />
+        <OnboardingSection status={statusParam as RunStatus | undefined} />
       </Suspense>
     </div>
   );
 }
 
-async function PdiSection({ page }: { page: number }) {
+async function OnboardingSection({ status }: { status?: RunStatus }) {
   const unit = await getCurrentUnit();
 
   if (!unit) {
@@ -95,40 +100,12 @@ async function PdiSection({ page }: { page: number }) {
           fontSize: 13,
         }}
       >
-        Selecione uma unit no menu para ver os PDIs.
+        Selecione uma unit no menu para ver os onboardings.
       </div>
     );
   }
 
-  const user = await requireUser();
-  const myEmployee = await getEmployeeByUser(user.id, unit.id);
+  const runs = await listOnboardingRuns(unit.id, status);
 
-  const pdiPage = myEmployee ? await listPdis(myEmployee.id, page, PAGE_SIZE) : null;
-
-  return (
-    <>
-      {!myEmployee && (
-        <div
-          style={{
-            padding: "12px 16px",
-            background: "rgba(245,158,11,0.10)",
-            border: "1px solid rgba(245,158,11,0.35)",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#A16207",
-            marginBottom: 16,
-          }}
-        >
-          Seu usuário não está vinculado a um colaborador nesta unit. PDIs não podem ser exibidos ou criados.
-        </div>
-      )}
-      <PdiListClient
-        pdis={pdiPage?.data ?? []}
-        hasEmployee={!!myEmployee}
-        page={page}
-        totalPages={pdiPage?.totalPages ?? 1}
-        count={pdiPage?.count ?? 0}
-      />
-    </>
-  );
+  return <OnboardingClient runs={runs} activeStatus={status} />;
 }
