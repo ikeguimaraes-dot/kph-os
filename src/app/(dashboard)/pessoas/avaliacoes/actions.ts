@@ -4,7 +4,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/server";
 import { createNotification } from "@/lib/notifications/actions";
 import type { ActionResult } from "@/lib/result";
@@ -449,6 +449,368 @@ export async function updatePerformanceReview(
     return { ok: false, error: e instanceof Error ? e.message : "Erro" };
   }
 }
+
+// ── Ciclos 360° ──────────────────────────────────────────────
+
+export type CicloStatus = "aberto" | "em_andamento" | "encerrado";
+
+export type AvaliacaoCiclo = {
+  id: string;
+  unit_id: string;
+  nome: string;
+  template_id: string | null;
+  status: CicloStatus;
+  data_inicio: string;
+  data_fim: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type AvaliacaoParticipante = {
+  id: string;
+  ciclo_id: string;
+  avaliado_id: string;
+  avaliador_id: string;
+  tipo_avaliador: "autoavaliacao" | "par" | "gestor" | "liderado";
+  status: "pendente" | "concluido";
+  review_id: string | null;
+};
+
+export type CreateCicloInput = {
+  unit_id: string;
+  nome: string;
+  template_id: string | null;
+  data_inicio: string;
+  data_fim: string;
+  participantes: Array<{
+    avaliado_id: string;
+    avaliador_id: string;
+    tipo_avaliador: AvaliacaoParticipante["tipo_avaliador"];
+  }>;
+};
+
+export type CicloComProgresso = AvaliacaoCiclo & {
+  total: number;
+  concluidos: number;
+  template_nome: string | null;
+};
+
+export type ParticipanteDetalhado = AvaliacaoParticipante & {
+  avaliado_nome: string;
+  avaliado_sobrenome: string;
+  avaliado_funcao: string;
+  avaliador_nome: string;
+  avaliador_sobrenome: string;
+};
+
+export type NineBoxResult = {
+  employee_id: string;
+  nome: string;
+  sobrenome: string;
+  funcao: string;
+  x: number;
+  y: number;
+  quadrante: number;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyClient = { from: (table: string) => any };
+
+function asAny(
+  client: ReturnType<typeof createServiceClient>,
+): AnyClient | null {
+  return client as unknown as AnyClient | null;
+}
+
+export async function createCiclo(
+  data: CreateCicloInput,
+): Promise<ActionResult<AvaliacaoCiclo>> {
+  try {
+    const user = await requireUser();
+    const db = asAny(createServiceClient());
+    if (!db) return { ok: false, error: "Supabase indisponível" };
+
+    if (!data.nome.trim()) return { ok: false, error: "Nome obrigatório" };
+    if (!data.data_inicio || !data.data_fim)
+      return { ok: false, error: "Datas obrigatórias" };
+
+    const { data: ciclo, error: cicloErr } = await db
+      .from("avaliacao_ciclos")
+      .insert({
+        unit_id: data.unit_id,
+        nome: data.nome.trim(),
+        template_id: data.template_id ?? null,
+        status: "aberto",
+        data_inicio: data.data_inicio,
+        data_fim: data.data_fim,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (cicloErr || !ciclo) return { ok: false, error: cicloErr?.message ?? "Falha ao criar ciclo" };
+
+    if (data.participantes.length > 0) {
+      const rows = data.participantes.map((p) => ({
+        ciclo_id: ciclo.id,
+        avaliado_id: p.avaliado_id,
+        avaliador_id: p.avaliador_id,
+        tipo_avaliador: p.tipo_avaliador,
+        status: "pendente",
+      }));
+      const { error: partErr } = await db
+        .from("avaliacao_participantes")
+        .insert(rows);
+      if (partErr) console.warn("[createCiclo] participantes:", partErr.message);
+    }
+
+    revalidatePath("/pessoas/avaliacoes/ciclos");
+    return { ok: true, data: ciclo as AvaliacaoCiclo };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Erro" };
+  }
+}
+
+export async function listCiclos(unitId: string): Promise<CicloComProgresso[]> {
+  try {
+    const db = asAny(createServiceClient());
+    if (!db) return [];
+
+    const { data: ciclos, error } = await db
+      .from("avaliacao_ciclos")
+      .select("*, template:performance_templates(nome)")
+      .eq("unit_id", unitId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[listCiclos]", error.message);
+      return [];
+    }
+
+    const ids = (ciclos ?? []).map((c: AvaliacaoCiclo) => c.id);
+    if (ids.length === 0) return [];
+
+    const { data: parts } = await db
+      .from("avaliacao_participantes")
+      .select("ciclo_id, status")
+      .in("ciclo_id", ids);
+
+    return (ciclos ?? []).map((c: AvaliacaoCiclo & { template: unknown }) => {
+      const cParts = (parts ?? []).filter(
+        (p: { ciclo_id: string; status: string }) => p.ciclo_id === c.id,
+      );
+      const template = Array.isArray(c.template) ? c.template[0] : c.template;
+      return {
+        id: c.id,
+        unit_id: c.unit_id,
+        nome: c.nome,
+        template_id: c.template_id,
+        status: c.status,
+        data_inicio: c.data_inicio,
+        data_fim: c.data_fim,
+        created_by: c.created_by,
+        created_at: c.created_at,
+        total: cParts.length,
+        concluidos: cParts.filter(
+          (p: { status: string }) => p.status === "concluido",
+        ).length,
+        template_nome: (template as { nome?: string } | null)?.nome ?? null,
+      } as CicloComProgresso;
+    });
+  } catch (e) {
+    console.error("[listCiclos] exceção:", e);
+    return [];
+  }
+}
+
+export type CicloDetalhe = AvaliacaoCiclo & {
+  template_nome: string | null;
+  participantes: ParticipanteDetalhado[];
+};
+
+export async function getCicloComParticipantes(
+  cicloId: string,
+): Promise<CicloDetalhe | null> {
+  try {
+    const db = asAny(createServiceClient());
+    if (!db) return null;
+
+    const { data: ciclo, error: cicloErr } = await db
+      .from("avaliacao_ciclos")
+      .select("*, template:performance_templates(nome)")
+      .eq("id", cicloId)
+      .maybeSingle();
+
+    if (cicloErr || !ciclo) return null;
+
+    const { data: parts, error: partsErr } = await db
+      .from("avaliacao_participantes")
+      .select(
+        "*, avaliado:employees!avaliado_id(nome, sobrenome, funcao), avaliador:employees!avaliador_id(nome, sobrenome)",
+      )
+      .eq("ciclo_id", cicloId)
+      .order("avaliado_id");
+
+    if (partsErr) console.error("[getCicloComParticipantes] parts:", partsErr.message);
+
+    const template = Array.isArray(ciclo.template) ? ciclo.template[0] : ciclo.template;
+
+    type RawPart = {
+      id: string;
+      ciclo_id: string;
+      avaliado_id: string;
+      avaliador_id: string;
+      tipo_avaliador: string;
+      status: string;
+      review_id: string | null;
+      avaliado: unknown;
+      avaliador: unknown;
+    };
+
+    const participantes: ParticipanteDetalhado[] = (parts ?? []).map((p: RawPart) => {
+      const avaliado = Array.isArray(p.avaliado) ? p.avaliado[0] : p.avaliado;
+      const avaliador = Array.isArray(p.avaliador) ? p.avaliador[0] : p.avaliador;
+      return {
+        id: p.id,
+        ciclo_id: p.ciclo_id,
+        avaliado_id: p.avaliado_id,
+        avaliador_id: p.avaliador_id,
+        tipo_avaliador: p.tipo_avaliador as AvaliacaoParticipante["tipo_avaliador"],
+        status: p.status as "pendente" | "concluido",
+        review_id: p.review_id ?? null,
+        avaliado_nome: (avaliado as { nome?: string } | null)?.nome ?? "—",
+        avaliado_sobrenome: (avaliado as { sobrenome?: string } | null)?.sobrenome ?? "",
+        avaliado_funcao: (avaliado as { funcao?: string } | null)?.funcao ?? "—",
+        avaliador_nome: (avaliador as { nome?: string } | null)?.nome ?? "—",
+        avaliador_sobrenome: (avaliador as { sobrenome?: string } | null)?.sobrenome ?? "",
+      };
+    });
+
+    return {
+      id: ciclo.id,
+      unit_id: ciclo.unit_id,
+      nome: ciclo.nome,
+      template_id: ciclo.template_id,
+      status: ciclo.status as CicloStatus,
+      data_inicio: ciclo.data_inicio,
+      data_fim: ciclo.data_fim,
+      created_by: ciclo.created_by,
+      created_at: ciclo.created_at,
+      template_nome: (template as { nome?: string } | null)?.nome ?? null,
+      participantes,
+    };
+  } catch (e) {
+    console.error("[getCicloComParticipantes] exceção:", e);
+    return null;
+  }
+}
+
+export async function calcular9Box(cicloId: string): Promise<NineBoxResult[]> {
+  try {
+    const db = asAny(createServiceClient());
+    if (!db) return [];
+
+    type PartRow = { avaliado_id: string; review_id: string | null; tipo_avaliador: string };
+
+    // Carrega participantes com review_id preenchido (concluídos)
+    const { data: parts, error: partsErr } = await db
+      .from("avaliacao_participantes")
+      .select("avaliado_id, review_id, tipo_avaliador")
+      .eq("ciclo_id", cicloId)
+      .eq("status", "concluido")
+      .not("review_id", "is", null);
+
+    if (partsErr || !parts?.length) return [];
+
+    const reviewIds = (parts as PartRow[]).map((p) => p.review_id as string);
+
+    // performance_reviews existe nos tipos — usa supabase direto
+    const supabase = createServiceClient();
+    if (!supabase) return [];
+
+    const { data: reviews, error: revErr } = await supabase
+      .from("performance_reviews")
+      .select("id, nota_geral, respostas, template_id")
+      .in("id", reviewIds);
+
+    if (revErr || !reviews?.length) return [];
+
+    type EmpRow = { id: string; nome: string; sobrenome: string; funcao: string };
+    type ReviewRow = { id: string; nota_geral: string | number | null };
+
+    // Carrega dados dos avaliados únicos
+    const avaliadoIds = [...new Set((parts as PartRow[]).map((p) => p.avaliado_id))];
+    const { data: employees } = await supabase
+      .from("employees")
+      .select("id, nome, sobrenome, funcao")
+      .in("id", avaliadoIds);
+
+    const empMap = new Map<string, EmpRow>(
+      ((employees ?? []) as EmpRow[]).map((e) => [e.id, e]),
+    );
+    const reviewMap = new Map<string, ReviewRow>(
+      ((reviews ?? []) as ReviewRow[]).map((r) => [r.id, r]),
+    );
+
+    // Agrega: X = média nota_geral dos avaliadores externos (par/gestor/liderado)
+    //         Y = autoavaliação (potencial)
+    const aggMap = new Map<
+      string,
+      { xSum: number; xCount: number; ySum: number; yCount: number }
+    >();
+
+    for (const p of parts as PartRow[]) {
+      const review = reviewMap.get(p.review_id as string);
+      if (!review) continue;
+
+      const nota = review.nota_geral != null ? Number(review.nota_geral) : null;
+      if (nota == null || !Number.isFinite(nota)) continue;
+
+      const entry = aggMap.get(p.avaliado_id) ?? { xSum: 0, xCount: 0, ySum: 0, yCount: 0 };
+
+      if (p.tipo_avaliador === "autoavaliacao") {
+        entry.ySum += nota;
+        entry.yCount += 1;
+      } else {
+        entry.xSum += nota;
+        entry.xCount += 1;
+      }
+
+      aggMap.set(p.avaliado_id, entry);
+    }
+
+    const results: NineBoxResult[] = [];
+    for (const [empId, agg] of aggMap) {
+      const emp = empMap.get(empId);
+      if (!emp) continue;
+
+      const x = agg.xCount > 0 ? Math.round((agg.xSum / agg.xCount) * 100) / 100 : 0;
+      const y = agg.yCount > 0 ? Math.round((agg.ySum / agg.yCount) * 100) / 100 : x;
+
+      // Quadrante 1-9: col (x) 1-3 da esquerda, row (y) 1-3 de baixo
+      const col = x <= 2 ? 1 : x <= 3.5 ? 2 : 3;
+      const row = y <= 2 ? 1 : y <= 3.5 ? 2 : 3;
+      const quadrante = (row - 1) * 3 + col;
+
+      results.push({
+        employee_id: empId,
+        nome: emp.nome,
+        sobrenome: emp.sobrenome,
+        funcao: emp.funcao,
+        x,
+        y,
+        quadrante,
+      });
+    }
+
+    return results;
+  } catch (e) {
+    console.error("[calcular9Box] exceção:", e);
+    return [];
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────
 
 /** Lookup employee.user_id e dispara notificação. Best-effort — não falha o action. */
 async function notifyAvaliado(
