@@ -436,7 +436,7 @@ export type CCTVersionInsert = {
 
 // ── HOS RH expansion (migrations 011–018) ──────────────────────
 
-// Documentos pessoais (storage path no bucket `documents`).
+// Documentos pessoais (storage path no bucket `employee-documents`).
 export type DocumentTipo = "RG" | "CPF" | "CTPS" | "contrato" | "exame" | "outro";
 
 export type Document = {

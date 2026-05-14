@@ -15,17 +15,13 @@ const TABLE = "employee_documents";
 async function ensureBucket(): Promise<void> {
   const service = createServiceClient();
   if (!service) return;
-  try {
-    const { data: buckets } = await service.storage.listBuckets();
-    const exists = buckets?.some((b) => b.name === BUCKET);
-    if (!exists) {
-      await service.storage.createBucket(BUCKET, {
-        public: false,
-        fileSizeLimit: 10485760,
-      });
-    }
-  } catch {
-    // bucket may already exist — safe to ignore
+  const { error } = await service.storage.createBucket(BUCKET, {
+    public: false,
+    fileSizeLimit: 10485760,
+  });
+  // Ignore "already exists" — bucket was already created, which is fine.
+  if (error && !error.message.toLowerCase().includes("already exists")) {
+    throw new Error(`Storage bucket error: ${error.message}`);
   }
 }
 
