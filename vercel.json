@@ -22,6 +22,14 @@
     {
       "path": "/api/orchestrator/cron/onboarding",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/orchestrator/cron/score",
+      "schedule": "30 8 * * 1"
+    },
+    {
+      "path": "/api/orchestrator/cron/banco-horas",
+      "schedule": "45 8 * * 1"
     }
   ]
 }
