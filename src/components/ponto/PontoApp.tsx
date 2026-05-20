@@ -16,6 +16,7 @@ import {
 import { CameraCapture } from "@/components/ponto/CameraCapture";
 import { useDeviceInfo, useGeolocation } from "@/components/ponto/useGeolocation";
 import { registrarPunch } from "@/lib/pessoas/ponto-actions";
+import type { PunchActionResult } from "@/lib/pessoas/ponto-actions";
 import {
   PUNCH_BUTTON_LABEL,
   PUNCH_COLOR,
@@ -65,6 +66,7 @@ export function PontoApp({
   const [showCamera, setShowCamera] = useState(false);
   const [success, setSuccess] = useState<SuccessState>(null);
   const [error, setError] = useState<string | null>(null);
+  const [minutosRestantes, setMinutosRestantes] = useState<number | null>(null);
   const [debugLog, setDebugLog] = useState<DebugLine[]>([]);
 
   // Sempre acumula — só renderiza quando debugMode=true. Evita closure
@@ -108,12 +110,25 @@ export function PontoApp({
   const next = useMemo(() => nextPunchTipo(punches), [punches]);
   const totals = useMemo(() => calcWorkHours(punches), [punches]);
 
+  // Limpa o bloqueio de pausa quando a sequência avança (novo punch registrado)
+  const punchCount = punches.length;
+  useEffect(() => {
+    setMinutosRestantes(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [punchCount]);
+
+  const isPausaBloqueada = next === "intervalo_inicio" && minutosRestantes !== null && minutosRestantes > 0;
+
   const Icon = next ? ICONS[next] : Sparkles;
   const color = next ? PUNCH_COLOR[next] : "var(--brand)";
-  const buttonLabel = next ? PUNCH_BUTTON_LABEL[next] : "Jornada concluída";
+  const buttonLabel = isPausaBloqueada
+    ? `Pausa disponível em ${minutosRestantes}min`
+    : next
+      ? PUNCH_BUTTON_LABEL[next]
+      : "Jornada concluída";
 
   const handlePress = () => {
-    if (!next || pending) return;
+    if (!next || pending || isPausaBloqueada) return;
     setError(null);
     setShowCamera(true);
   };
@@ -158,18 +173,23 @@ export function PontoApp({
       };
       pushDebug("punch.payload", { ...payload, photoBase64: photoBase64 ? "[BASE64_TRUNCATED]" : null });
 
-      const result = await registrarPunch(payload);
+      const result: PunchActionResult = await registrarPunch(payload);
 
       pushDebug("punch.result", {
         ok: result.ok,
         error: result.ok ? null : result.error,
+        minutosRestantes: !result.ok ? (result.minutosRestantes ?? null) : null,
         id: result.ok ? result.data.id : null,
       });
 
       if (!result.ok) {
         setError(result.error);
+        if (result.minutosRestantes !== undefined) {
+          setMinutosRestantes(result.minutosRestantes);
+        }
         return;
       }
+      setMinutosRestantes(null);
 
       // Optimistic update — sem router.refresh() pra não invalidar nada.
       const punch = result.data;
@@ -191,7 +211,7 @@ export function PontoApp({
         Icon={Icon}
         label={buttonLabel}
         color={color}
-        disabled={!next || pending}
+        disabled={!next || pending || isPausaBloqueada}
         loading={pending}
         onClick={handlePress}
       />

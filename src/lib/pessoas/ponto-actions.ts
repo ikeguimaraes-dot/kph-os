@@ -20,8 +20,8 @@
 
 import { createSupabaseServerClient, createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/server";
-import type { ActionResult } from "@/lib/result";
 import type { PunchTipo, TimeClockPunch } from "@/types/pessoas";
+import { nextPunchTipo, PUNCH_LABEL } from "@/lib/pessoas/punch";
 
 export type RegistrarPunchInput = {
   employeeId: string;
@@ -32,6 +32,11 @@ export type RegistrarPunchInput = {
   photoBase64?: string | null;
 };
 
+/** ActionResult estendido para punch — inclui minutosRestantes no erro de pausa bloqueada. */
+export type PunchActionResult =
+  | { ok: true; data: TimeClockPunch }
+  | { ok: false; error: string; minutosRestantes?: number };
+
 const VALID_TIPOS: ReadonlyArray<PunchTipo> = [
   "entrada",
   "saida",
@@ -41,7 +46,7 @@ const VALID_TIPOS: ReadonlyArray<PunchTipo> = [
 
 export async function registrarPunch(
   input: RegistrarPunchInput,
-): Promise<ActionResult<TimeClockPunch>> {
+): Promise<PunchActionResult> {
   // ── Validação ────────────────────────────────────────────────
   if (!input?.employeeId) {
     return { ok: false, error: "employeeId obrigatório" };
@@ -96,6 +101,63 @@ export async function registrarPunch(
       ok: false,
       error: "Sem permissão para registrar ponto deste colaborador",
     };
+  }
+
+  // ── 2.5) Validação de sequência e regras de negócio ──────────
+  // Meia-noite em São Paulo (UTC-3, sem DST desde 2019) como limite do dia.
+  const agora = new Date();
+  const agoraSP = new Date(agora.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const meiaNoiteSP = new Date(agoraSP.getFullYear(), agoraSP.getMonth(), agoraSP.getDate());
+  const offsetMs = agora.getTime() - agoraSP.getTime();
+  const meiaNoiteUTC = new Date(meiaNoiteSP.getTime() + offsetMs);
+
+  type PunchRow = Pick<TimeClockPunch, "id" | "tipo" | "timestamp_punch">;
+  const { data: punchesHoje, error: punchesErr } = await service
+    .from("time_clock_punches")
+    .select("id, tipo, timestamp_punch")
+    .eq("employee_id", employee.id)
+    .gte("timestamp_punch", meiaNoiteUTC.toISOString())
+    .order("timestamp_punch", { ascending: true })
+    .returns<PunchRow[]>();
+
+  if (punchesErr) {
+    return { ok: false, error: `Erro ao verificar pontos do dia: ${punchesErr.message}` };
+  }
+
+  const punchesDodia = punchesHoje ?? [];
+
+  // Regra 1a — máximo 4 registros por dia
+  if (punchesDodia.length >= 4) {
+    return { ok: false, error: "Jornada já encerrada. Máximo de 4 registros por dia atingido." };
+  }
+
+  // Regra 1b — sequência obrigatória: entrada → intervalo_inicio → intervalo_fim → saida
+  const proximoEsperado = nextPunchTipo(punchesDodia as TimeClockPunch[]);
+  if (proximoEsperado === null) {
+    return { ok: false, error: "Jornada já encerrada para hoje." };
+  }
+  if (input.tipo !== proximoEsperado) {
+    return {
+      ok: false,
+      error: `Registro inválido. Próximo esperado: ${PUNCH_LABEL[proximoEsperado]}.`,
+    };
+  }
+
+  // Regra 2 — intervalo disponível somente após 1h da entrada
+  if (input.tipo === "intervalo_inicio") {
+    const entradaPunch = punchesDodia.find((p) => p.tipo === "entrada");
+    if (entradaPunch) {
+      const diffMs = agora.getTime() - new Date(entradaPunch.timestamp_punch).getTime();
+      const diffMinutos = diffMs / 60_000;
+      if (diffMinutos < 60) {
+        const minutosRestantes = Math.ceil(60 - diffMinutos);
+        return {
+          ok: false,
+          error: `Pausa disponível somente 1h após a entrada. Aguarde ${minutosRestantes} minuto${minutosRestantes !== 1 ? "s" : ""}.`,
+          minutosRestantes,
+        };
+      }
+    }
   }
 
   // ── 3) Insert via service_role (bypassa RLS) ─────────────────
