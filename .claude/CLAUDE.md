@@ -1,7 +1,7 @@
 # KPH OS — Guia Permanente do Claude Code
 
 > Leia este arquivo inteiro antes de fazer qualquer coisa. É a memória completa do projeto.
-> Última atualização: 2026-05-12 (sync com codebase real).
+> Última atualização: 2026-05-21 (geofencing units — migration 063, /configuracoes/unidades).
 
 ---
 
@@ -341,9 +341,9 @@ src/
       headcount-actions.ts
       import-actions.ts           ← importação ponto_mensal
       labor.ts                    ← hoursWorked, timeToMinutes
-      ponto-actions.ts
+      ponto-actions.ts            ← registrarPunch + PunchActionResult + Haversine geofencing (063)
       ponto-mensal-actions.ts
-      punch.ts                    ← endpoint app mobile
+      punch.ts                    ← nextPunchTipo, PUNCH_LABEL, PUNCH_COLOR, calcWorkHours, formatHHMM, formatMinutesAsHours
       schema.ts                   ← schemas Zod de RH
       score-monthly.ts
       score.ts                    ← SCORE_BASE, WARNING_DELTA, ABSENCE_DELTA
@@ -586,7 +586,7 @@ export async function requireUser(): Promise<CurrentUser> {
 
 ## 7. BANCO DE DADOS — SCHEMA COMPLETO
 
-### Migrations (001–059)
+### Migrations (001–063)
 
 | Migration | Descrição |
 |-----------|-----------|
@@ -644,6 +644,10 @@ export async function requireUser(): Promise<CurrentUser> {
 | 057_reunioes_1on1 | reunioes_1on1 + reuniao_action_items |
 | 058_organograma | ALTER employees ADD COLUMN manager_id UUID REFERENCES employees(id) |
 | 059_onboarding | onboarding_templates + onboarding_tarefas + onboarding_runs + onboarding_checklist |
+| 060_hos_app_documents | (verificar conteúdo — arquivo presente no repo, aplicação a confirmar) |
+| 061_score_banco_horas_monitors | Seed hos_jobs: score_monitor + banco_horas_monitor (ON CONFLICT DO NOTHING) |
+| 062_punch_photos_bucket | Bucket Storage `punch-photos` (privado, 5 MB) + RLS SELECT managers + RLS SELECT colaborador próprio. Upload/delete via service_role. Path: `{employee_uuid}/{timestamp_ms}.jpg` |
+| 063_geofencing_units | ADD COLUMN latitude NUMERIC(10,7), longitude NUMERIC(10,7), geofence_radius_m INT DEFAULT 200 em units |
 
 ### Tabelas por domínio
 
@@ -651,7 +655,10 @@ export async function requireUser(): Promise<CurrentUser> {
 ```sql
 groups(id, name, slug)
 brands(id, group_id, name, slug, color, active)
-units(id, brand_id, name, address, whatsapp_number, active)
+units(id, brand_id, name, address, whatsapp_number, active,
+  latitude NUMERIC(10,7),          -- 063: geofencing
+  longitude NUMERIC(10,7),         -- 063: geofencing
+  geofence_radius_m INT DEFAULT 200 -- 063: raio em metros; NULL = sem geofence)
 roles(id, name, description)
 user_roles(id, user_id, role_id, unit_id, brand_id, group_id)
 audit_log(id, user_id, action, resource, resource_id, old_data, new_data)
@@ -930,6 +937,7 @@ await supabase.from("hos_runs")
 | /operacao/mapa | Mapa de mesas | restaurant_tables |
 | /orquestrador | Painel HOS | hos_runs, hos_jobs, hos_approvals |
 | /recrutamento | Pipeline R&S | job_openings, candidates |
+| /configuracoes/unidades | Geofencing de unidades — lat/lon/raio por unidade | units |
 
 ---
 
@@ -961,6 +969,19 @@ export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 ```
+
+### `src/lib/pessoas/ponto-actions.ts` — tipo extendido e geofencing
+`registrarPunch` retorna `PunchActionResult` (não `ActionResult`) para suportar `minutosRestantes`:
+```typescript
+export type PunchActionResult =
+  | { ok: true; data: TimeClockPunch }
+  | { ok: false; error: string; minutosRestantes?: number };
+```
+Regras server-side:
+1. Sequência obrigatória: `entrada → intervalo_inicio → intervalo_fim → saida`
+2. Máximo 4 registros/dia (timezone SP)
+3. `intervalo_inicio` bloqueado se < 60 min da entrada — retorna `minutosRestantes`
+4. **Geofencing (063):** busca `latitude/longitude/geofence_radius_m` da unit; calcula distância Haversine; `aprovado = true` se ≤ raio, `null` se > raio ou sem coords
 
 ### `src/lib/format.ts`
 - `formatBRL(v)` — formata número como moeda BRL (pt-BR)
@@ -1006,7 +1027,7 @@ sendDiscordMessage(content)  // POST para DISCORD_WEBHOOK_URL
 
 1. **Criar branch:** `feat/nome-do-modulo` ou `fix/nome-do-bug`
 2. **Migration SQL primeiro** se há mudanças no banco:
-   - Criar `supabase/migrations/0XX_descricao.sql` (próximo número: **060**)
+   - Criar `supabase/migrations/0XX_descricao.sql` (próximo número: **064**)
    - Aplicar **manualmente** no Supabase SQL Editor antes de mergear
 3. **Server Actions** em `src/app/(dashboard)/modulo/actions.ts`:
    - `"use server"` no topo
@@ -1147,7 +1168,189 @@ Projeto usa shadcn/ui v4 com variáveis CSS em `globals.css`. Tailwind v4 com `t
 
 ---
 
-## 16. OBSERVAÇÕES FINAIS
+## 16. BANCO DE OPERAÇÕES — MEET & EAT
+
+Segundo Supabase conectado ao KPH OS. **Sem RLS** — acesso exclusivo via service role no servidor.
+
+- **Project ID:** `laodipuodgrpqykrupms`
+- **URL:** `https://laodipuodgrpqykrupms.supabase.co`
+- **Cliente:** `createOperationsClient()` em `src/lib/supabase/operations-client.ts`
+- **Tipos:** `src/types/operations-database.ts`
+- **Actions:** `src/app/(dashboard)/financeiro/actions-operations.ts`
+
+### Como os dados chegam ao banco
+
+| Tabela | Método | Automático? | Última atualização |
+|--------|--------|-------------|-------------------|
+| `vendas_diarias` | Job externo não identificado | ✅ Diário ~8h UTC (5h Brasília) | 2026-05-20 |
+| `auditoria_nutricional` | Job externo não identificado | ✅ Diário ~8h02 UTC | 2026-05-20 |
+| `notas_nutri` | Job externo não identificado | ✅ Automático | 2026-05-20 |
+| `metas_projecoes` | Edição inline no dashboard Meet & Eat | ✅ Real-time | 2026-05-01 |
+| `notas_detalhadas` | Job/script não identificado | ❓ Irregular | 2026-04-13 |
+| `titulos_a_pagar` | Export manual do ERP TOTVS | ❌ Manual | 2026-04-17 20:55 UTC |
+| `workday_resumo` e `workday_*` | Script não identificado (PDV Workday) | ❌ Manual/irregular | **2026-04-11** |
+
+**Sobre o job automático das 8h:** sem cron no repo meetandeat-dashboard (sem vercel.json, sem GitHub Actions, sem node-cron). O job roda fora do repo — provavelmente **Google Apps Script** ou **Make/Zapier** conectando planilha → Supabase REST. Para forçar execução ou descobrir a origem, perguntar quem cuida do PDV/financeiro no Meet & Eat.
+
+### Fonte de dados do módulo Financeiro (KPH OS)
+
+```
+/financeiro/fluxo  →  getFluxoCaixaMes()
+                         ├── SELECT vendas_diarias  (dados atualizados diariamente)
+                         └── SELECT metas_projecoes (meta mensal + array por dia da semana)
+
+/financeiro/pagar  →  getPagarKpisETitulos()
+                         └── SELECT titulos_a_pagar (último import: 17/04/2026)
+```
+
+**workday_resumo está PARADA em 11/04/2026 — não usar para Fluxo de Caixa.**
+`getFluxoCaixaMes()` migrou para `vendas_diarias` (PR fix/financeiro-vendas-diarias).
+
+Campos **nulos** em `vendas_diarias` (não disponíveis nessa fonte):
+- `custo` (CMV em R$) → `null` → exibe "—"
+- `cmv_pct` → `null` → exibe "—"
+- `lucro` → `null` → exibe "—"
+- `pagamentos` (mix por método) → `null` → seção Mix some
+
+**Backlog:** quando `workday_resumo` voltar a ser alimentado, enriquecer com CMV/lucro/pagamentos. Candidato: cron HOS que processa PDFs Lorean via Claude API (ver abaixo).
+
+### PDFs Lorean — origem do workday_resumo
+
+O fechamento de caixa do PDV Workday gera **3 PDFs enviados automaticamente por e-mail**:
+
+| PDF | Conteúdo | Corresponde a |
+|-----|----------|---------------|
+| **Movimento** | KPIs do dia: bruto, CMV, ticket, lucro, acessos | `workday_resumo` |
+| **Caixa** | Detalhes por operador de caixa | `workday_caixas` |
+| **Venda** | Ranking de produtos com CMV | `workday_produtos` |
+
+**Backlog — cron HOS + Claude API:**
+Substituir o processo manual (ou OpenClaw) por um agente HOS que:
+1. Monitora a caixa de e-mail (Gmail API)
+2. Detecta e-mails com PDFs Lorean
+3. Usa Claude API para extrair os dados estruturados
+4. Faz upsert em `workday_resumo`, `workday_caixas`, `workday_produtos`
+
+### Schema completo (verificado via REST API em 21/05/2026)
+
+#### `workday_resumo` — KPIs diários do PDV
+```
+workday_id        integer  PK
+data              date     NOT NULL
+unidade_id        integer  NOT NULL  (2031 = Meet & Eat)
+acessos           integer  NULL
+cmv_pct           integer  NULL      (%)
+ticket_medio      numeric  NULL
+bruto             numeric  NULL
+desconto          numeric  NULL
+gorjeta           numeric  NULL
+custo             numeric  NULL      (CMV em R$)
+lucro             numeric  NULL
+cancelamentos_total  numeric NULL
+pagamentos        jsonb    NULL  [{tipo, metodo, fechado, recebido, diferenca}]
+ambientes         jsonb    NULL
+turnos            jsonb    NULL
+clientes_tipo/sexo/idade  jsonb NULL
+-- + 20 outros campos numéricos e JSONB
+```
+
+#### `workday_caixas` — por caixa físico/operador (FK → workday_resumo)
+```
+caixa_id, workday_id, operador_nome, operador_cpf,
+abertura/fechamento timestamptz, total_fechado, total_recebido,
+diferenca_total, dinheiro_total, pagamentos jsonb, cedulas jsonb
+```
+
+#### `workday_produtos` — ranking por produto (FK → workday_resumo)
+```
+id, workday_id, posicao, nome, qtde, unitario,
+cmv_pct integer, custo, lucro, consumo
+```
+
+#### `workday_grupos` — mix por categoria (FK → workday_resumo)
+```
+id, workday_id, posicao, nome, percentual integer, bruto, desconto, gorjeta, consumo
+```
+
+#### `workday_usuarios` — ranking de garçons (FK → workday_resumo)
+```
+id, workday_id, posicao, nome, qtde, gorjeta, convite, produto, consumo
+```
+
+#### `workday_venda` — venda consolidada por dia (FK → workday_resumo)
+```
+workday_id PK+FK, data, bruto_total, desconto_total, gorjeta_total, total,
+categorias jsonb  -- {NomeCategoria: {bruto, total, gorjeta, desconto, produtos:[...]}}
+```
+
+#### `titulos_a_pagar` — AP do ERP TOTVS
+```
+id uuid PK, tipo, n_nota_fiscal, fantasia_fornecedor, razao_fornecedor,
+cnpj_cpf_fornecedor, t_fornecedor, descricao_c_gerencial,
+n_titulo, parcela, portador, d_lancamento date, d_competencia date,
+d_vencimento date, v_titulo numeric, v_saldo_atual numeric,
+dias_atraso_atual integer, situacao_atual text, fluxo_de_caixa boolean,
+importado_em timestamptz, ref_mes date  -- YYYY-MM-01 (filtro principal)
+```
+
+#### `vendas_diarias` — vendas por turno (automático ~8h UTC)
+```
+id integer PK, data_venda date NOT NULL, turno text NOT NULL,
+qtd_clientes integer, faturamento_bruto numeric, gorjetas numeric,
+descontos_clientes numeric, descontos_socios numeric, descontos_internos numeric,
+penduras numeric, perdas numeric, meta_faturamento numeric, criado_em timestamp
+```
+
+#### `metas_projecoes` — metas mensais
+```
+id, mes_ano text  -- "2026-5" (sem zero no mês),
+meta_faturamento numeric, criado_em,
+metas_diarias jsonb  -- [seg, ter, qua, qui, sex, sab, dom] em R$
+                     -- índice JS: {1:0,2:1,3:2,4:3,5:4,6:5,0:6}
+```
+
+#### `notas_nutri` / `auditoria_nutricional` / `notas_detalhadas`
+Inspeções nutricionais — nota 0.0–1.0, por local (MEET EAT, CASA DE APOIO), tipo e tópico/setor.
+
+### Mapa de dependências KPH OS ↔ banco de operações
+
+> Todas as operações são **somente leitura** (SELECT). KPH OS nunca escreve neste banco.
+
+| Tabela | SELECT | Não usado ainda |
+|--------|--------|----------------|
+| `workday_resumo` | ~~getWorkdayResumoMes~~ (migrado) | — |
+| `metas_projecoes` | `getMetasMes()` → `/financeiro/fluxo` | — |
+| `vendas_diarias` | `getVendasDiariasMes()` → `/financeiro/fluxo` | — |
+| `titulos_a_pagar` | `getTitulosAPagar()` → `/financeiro/pagar` | — |
+| `workday_produtos` | — | Backlog: CMV por produto, `/financeiro/[brand]/cmv` |
+| `workday_grupos` | — | Backlog: mix por categoria, gráfico composição |
+| `workday_usuarios` | — | Backlog: ranking garçons, `/operacao/vendedores` |
+| `workday_caixas` | — | Backlog: conferência de caixa |
+| `workday_venda` | — | Backlog: totais diários alternativos |
+| `vendas_diarias` (turnos) | — | Backlog: breakdown Almoço vs Jantar |
+| `notas_nutri` | — | Backlog: painel de qualidade |
+| `auditoria_nutricional` | — | Backlog: painel de qualidade |
+| `notas_detalhadas` | — | Backlog: scores por setor |
+
+### Padrão de uso
+
+```typescript
+import { createOperationsClient } from "@/lib/supabase/operations-client";
+
+const ops = createOperationsClient();
+if (!ops) return { ok: false, error: "Operações indisponível" };
+
+const { data } = await ops
+  .from("vendas_diarias")
+  .select("id,data_venda,turno,qtd_clientes,faturamento_bruto,gorjetas")
+  .gte("data_venda", "2026-05-01")
+  .lte("data_venda", "2026-05-31")
+  .order("data_venda", { ascending: true });
+```
+
+---
+
+## 17. OBSERVAÇÕES FINAIS
 
 1. **Migrations rodam manualmente.** Verificar no Supabase Dashboard antes de mergear.
 
@@ -1161,9 +1364,15 @@ Projeto usa shadcn/ui v4 com variáveis CSS em `globals.css`. Tailwind v4 com `t
    - Discord Commander conversacional
    - DB Guardian (agente de monitoramento de banco)
 
+5. **Backlog — banco de operações:**
+   - **Cron HOS + Claude API para PDFs Lorean:** substituir processo manual de sync do `workday_resumo`. Fechamento de caixa do PDV gera 3 PDFs por e-mail (Movimento, Caixa, Venda) — agente monitora Gmail, extrai dados via Claude API, faz upsert em `workday_resumo`/`workday_caixas`/`workday_produtos`
+   - **CMV/Lucro/Mix de pagamentos** no fluxo: implementar quando `workday_resumo` voltar a ser alimentado (enriquecer `getFluxoCaixaMes` com join a workday)
+   - **`/financeiro/pagar`** atualizado: forçar re-import de `titulos_a_pagar` (parado em 17/04/2026)
+   - **9 tabelas não consumidas:** workday_produtos, workday_grupos, workday_usuarios, workday_caixas, workday_venda, notas_nutri, auditoria_nutricional, notas_detalhadas — ver §16 para roadmap de uso
+
 5. **Tabela não está em `database.ts`?** Usar `(supabase as any).from("tabela")`. Acontece com migrations recentes antes de regenerar os tipos com `supabase gen types typescript`.
 
-6. **Próxima migration:** número `060`. Verificar: `ls supabase/migrations/ | sort | tail -5`.
+6. **Próxima migration:** número `064`. Verificar: `ls supabase/migrations/ | sort | tail -5`.
 
 7. **Claude API model:** sempre `claude-sonnet-4-20250514` nos agentes do orquestrador.
 
