@@ -1,0 +1,3 @@
+ALTER TABLE units ADD COLUMN latitude NUMERIC(10,7);
+ALTER TABLE units ADD COLUMN longitude NUMERIC(10,7);
+ALTER TABLE units ADD COLUMN geofence_radius_m INT DEFAULT 200;
