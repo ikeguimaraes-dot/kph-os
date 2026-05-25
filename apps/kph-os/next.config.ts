@@ -2,7 +2,7 @@ const zones = [
   { prefix: "/pessoas",      host: "kph-os-pessoas.vercel.app" },
   { prefix: "/operacao",     host: "kph-os-operacao.vercel.app" },
   { prefix: "/compras",      host: "kph-os-compras.vercel.app" },
-  { prefix: "/comercial",    host: "kph-os-comercial.vercel.app" },
+  { prefix: "/comercial",    host: "kph-os-ruptura.vercel.app" },
   { prefix: "/marca",        host: "kph-os-marca.vercel.app" },
   { prefix: "/inteligencia", host: "kph-os-inteligencia.vercel.app" },
 ];
