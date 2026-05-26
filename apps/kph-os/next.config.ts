@@ -1,4 +1,5 @@
 const zones = [
+  { prefix: "/financeiro",   host: "kph-os-financeiro.vercel.app" },
   { prefix: "/pessoas",      host: "kph-os-pessoas.vercel.app" },
   { prefix: "/operacao",     host: "kph-os-operacao.vercel.app" },
   { prefix: "/compras",      host: "kph-os-compras.vercel.app" },
