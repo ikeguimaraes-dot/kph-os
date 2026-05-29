@@ -1,16 +1,16 @@
-import { requireUser, isFounder } from "@kph/auth/server";
-import { loadFeedback } from "./actions";
-import { FeedbackClient } from "./feedback-client";
+import { requireUser } from "@kph/auth/server";
+import { loadJobs } from "@/lib/inteligencia/orquestrador";
+import { OrquestradorClient } from "./orquestrador-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeedbackPage() {
-  const user = await requireUser();
-  const items = await loadFeedback();
+export default async function OrquestradorPage() {
+  await requireUser();
+  const jobs = await loadJobs();
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto" }}>
-      <header style={{ marginBottom: 18 }}>
+      <header style={{ marginBottom: 20 }}>
         <div
           style={{
             fontSize: 11,
@@ -20,7 +20,7 @@ export default async function FeedbackPage() {
             color: "var(--text-3)",
           }}
         >
-          Inteligência · Bugs & Feedback
+          Orquestrador
         </div>
         <h1
           style={{
@@ -31,14 +31,14 @@ export default async function FeedbackPage() {
             letterSpacing: -0.4,
           }}
         >
-          Bugs & Feedback
+          Orquestrador de jobs
         </h1>
         <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
-          Reporte bugs e sugestões de melhoria para a plataforma KPH OS.
+          Execuções de deploy, sincronização, alertas e integrações automáticas.
         </p>
       </header>
 
-      <FeedbackClient initialItems={items} isFounder={isFounder(user)} />
+      <OrquestradorClient jobs={jobs} />
     </div>
   );
 }

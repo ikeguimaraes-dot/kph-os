@@ -1,17 +1,44 @@
-import { requireUser } from "@kph/auth/server"
+import { requireUser } from "@kph/auth/server";
+import { loadRoadmap } from "./actions";
+import { RoadmapClient } from "./roadmap-client";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  await requireUser()
+export default async function RoadmapPage() {
+  await requireUser();
+  const items = await loadRoadmap();
+
   return (
-    <div style={{ padding: 40, textAlign: "center" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 600, color: "var(--text)" }}>
-        Roadmap
-      </h1>
-      <p style={{ fontSize: 14, color: "var(--text-3)", marginTop: 8 }}>
-        Em construção. Próxima entrega no roadmap.
-      </p>
+    <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+      <header style={{ marginBottom: 20 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 1.6,
+            textTransform: "uppercase",
+            color: "var(--text-3)",
+          }}
+        >
+          Inteligência · Roadmap
+        </div>
+        <h1
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            margin: "6px 0 4px",
+            color: "var(--text)",
+            letterSpacing: -0.4,
+          }}
+        >
+          Roadmap da plataforma
+        </h1>
+        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+          Progresso dos sprints de desenvolvimento do KPH OS Inteligência.
+        </p>
+      </header>
+
+      <RoadmapClient items={items} />
     </div>
-  )
+  );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Target } from "lucide-react";
+import { Pencil, Target } from "lucide-react";
 
 import {
   Select,
@@ -139,6 +139,7 @@ export function MetasClient({
                             borderRadius: 99,
                             background: r.brand_color ?? "var(--text-3)",
                             display: "inline-block",
+                            flexShrink: 0,
                           }}
                         />
                         <span
@@ -150,6 +151,25 @@ export function MetasClient({
                         >
                           {r.brand_name}
                         </span>
+                        {!r.target && (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 3,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: "var(--brand)",
+                              padding: "1px 6px",
+                              borderRadius: 99,
+                              background: "var(--brand-soft)",
+                              border: "1px solid var(--brand)",
+                            }}
+                          >
+                            <Pencil size={9} />
+                            Configurar
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <KpiCell

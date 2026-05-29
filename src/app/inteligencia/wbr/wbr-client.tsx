@@ -1,16 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  Info,
   TrendingUp,
   Users,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 import { buttonVariants } from "@kph/ui/button";
 import { formatBRL } from "@/lib/format";
@@ -19,8 +32,10 @@ import {
   primeSeverity,
   receitaSeverity,
   type Severity,
+  type WbrAlertaDetalhe,
   type WbrBrandKpi,
   type WbrPayload,
+  type WbrTrendPoint,
 } from "@/lib/inteligencia/wbr-shared";
 
 const SEV_BG: Record<Severity, string> = {
@@ -235,6 +250,11 @@ export function WbrClient({
         </div>
       )}
 
+      {/* Trend chart — últimas 8 semanas */}
+      {payload.trend && payload.trend.length > 0 && (
+        <TrendChart trend={payload.trend} brands={payload.brands} />
+      )}
+
       <p
         style={{
           fontSize: 11,
@@ -311,9 +331,12 @@ function KpiCard({
 }
 
 function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
+  const [alertasOpen, setAlertasOpen] = useState(kpi.alertas_criticos > 0);
   const sevReceita = receitaSeverity(kpi.receita_gap_pct);
   const sevCmv = cmvSeverity(kpi.cmv_pct, kpi.cmv_meta);
   const sevPrime = primeSeverity(kpi.prime_cost_pct, kpi.prime_cost_meta);
+  const semReceita = kpi.receita_realizada === 0 && kpi.receita_mensal_dre != null && kpi.receita_mensal_dre > 0;
+
   return (
     <div
       style={{
@@ -323,6 +346,7 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
         padding: 18,
       }}
     >
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -354,7 +378,9 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
             {kpi.brand_name}
           </h2>
           {kpi.alertas_criticos > 0 && (
-            <span
+            <button
+              type="button"
+              onClick={() => setAlertasOpen((v) => !v)}
               style={{
                 fontSize: 11,
                 fontWeight: 700,
@@ -365,15 +391,35 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 4,
+                border: "none",
+                cursor: "pointer",
               }}
             >
               <AlertTriangle size={11} />
               {kpi.alertas_criticos} crítico{kpi.alertas_criticos === 1 ? "" : "s"}
-            </span>
+              {alertasOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            </button>
           )}
         </div>
       </div>
 
+      {/* Painel de alertas expandível */}
+      {alertasOpen && kpi.alertas_detalhe.length > 0 && (
+        <div
+          style={{
+            marginBottom: 14,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          {kpi.alertas_detalhe.map((a, i) => (
+            <AlertaItem key={i} alerta={a} />
+          ))}
+        </div>
+      )}
+
+      {/* KPIs */}
       <div
         style={{
           display: "grid",
@@ -386,6 +432,11 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
           value={formatBRL(kpi.receita_realizada)}
           severity="ok"
           hint={`vs projetado ${formatBRL(kpi.receita_projetada)}`}
+          extra={
+            semReceita
+              ? `Mês corrente (DRE): ${formatBRL(kpi.receita_mensal_dre)}`
+              : undefined
+          }
         />
         <Metric
           label="Gap projeção"
@@ -421,12 +472,7 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
           }
           hint="snapshot mês"
         />
-        <Metric
-          label="Headcount"
-          value={String(kpi.headcount_ativo)}
-          severity="ok"
-          hint="ativo"
-        />
+        <MetricHeadcount kpi={kpi} />
         <Metric
           label="Eventos"
           value={String(kpi.eventos_total)}
@@ -446,6 +492,296 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
           hint={`${kpi.alertas_criticos} crítico${kpi.alertas_criticos === 1 ? "" : "s"}`}
         />
       </div>
+
+      {/* Nota: receita semanal zerada mas mês tem dados */}
+      {semReceita && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "6px 10px",
+            background: "rgba(245,158,11,0.10)",
+            border: "1px solid rgba(245,158,11,0.25)",
+            borderRadius: 8,
+            fontSize: 11,
+            color: "#A16207",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Info size={12} />
+          Nenhum lançamento de receita registrado nesta semana. Receita do mês no DRE:{" "}
+          <strong>{formatBRL(kpi.receita_mensal_dre)}</strong>. Registre lançamentos no módulo Financeiro.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlertaItem({ alerta }: { alerta: WbrAlertaDetalhe }) {
+  const isCritical = alerta.severidade === "error";
+  const bg = isCritical ? SEV_BG.danger : SEV_BG.warn;
+  const fg = isCritical ? SEV_FG.danger : SEV_FG.warn;
+  return (
+    <div
+      style={{
+        background: bg,
+        border: `1px solid ${fg}33`,
+        borderRadius: 8,
+        padding: "8px 12px",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+      }}
+    >
+      <AlertTriangle size={13} color={fg} style={{ flexShrink: 0, marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+              color: fg,
+            }}
+          >
+            {alerta.tipo_alerta.replace(/_/g, " ")}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+            {new Date(alerta.created_at).toLocaleDateString("pt-BR")}
+          </span>
+        </div>
+        <p
+          style={{
+            fontSize: 12,
+            color: "var(--text-2)",
+            margin: "2px 0 0",
+            lineHeight: 1.45,
+          }}
+        >
+          {alerta.mensagem}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MetricHeadcount({ kpi }: { kpi: WbrBrandKpi }) {
+  const [open, setOpen] = useState(false);
+  const hasBreakdown = kpi.headcount_breakdown.length > 0;
+  return (
+    <div
+      style={{
+        background: SEV_BG.ok,
+        border: `1px solid ${SEV_FG.ok}33`,
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: SEV_FG.ok,
+          textTransform: "uppercase",
+          letterSpacing: 0.6,
+        }}
+      >
+        Headcount
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginTop: 4,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            color: "var(--text)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {kpi.headcount_ativo}
+        </span>
+        {hasBreakdown && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              fontSize: 10,
+              color: "var(--text-3)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 2,
+              padding: "2px 4px",
+            }}
+          >
+            por dept {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
+        ativo
+      </div>
+      {open && hasBreakdown && (
+        <div
+          style={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          {kpi.headcount_breakdown.map((d) => (
+            <div
+              key={d.departamento}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 10,
+                color: "var(--text-2)",
+              }}
+            >
+              <span>{d.departamento}</span>
+              <span style={{ fontWeight: 700 }}>{d.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Fallback palette when brand has no color
+const BRAND_COLORS = [
+  "#D4A574", "#8B6914", "#5C3D1E", "#A0845C",
+  "#6B8FA3", "#7B6E5D", "#4A7C59", "#9B7DB6",
+];
+
+function TrendChart({
+  trend,
+  brands,
+}: {
+  trend: WbrTrendPoint[];
+  brands: WbrBrandKpi[];
+}) {
+  // Build recharts data: [{ week_label, [brand_id]: receita, ... }]
+  const data = trend.map((point) => {
+    const row: Record<string, string | number> = { week_label: point.week_label };
+    for (const b of point.brands) {
+      row[b.brand_id] = b.receita;
+    }
+    return row;
+  });
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: 20,
+        marginTop: 16,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: "var(--text)",
+          marginBottom: 4,
+        }}
+      >
+        Tendência de receita — últimas 8 semanas
+      </div>
+      <div
+        style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 16 }}
+      >
+        Receita realizada por marca (cash_flow_entries)
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={data} margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+          <XAxis
+            dataKey="week_label"
+            tick={{ fontSize: 11, fill: "var(--text-3)" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: "var(--text-3)" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: number) =>
+              v === 0
+                ? "R$0"
+                : v >= 1000
+                ? `R$${(v / 1000).toFixed(0)}k`
+                : `R$${v}`
+            }
+            width={52}
+          />
+          <Tooltip
+            contentStyle={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              fontSize: 12,
+            }}
+            formatter={(value: unknown, name: unknown) => {
+              const num = typeof value === "number" ? value : 0;
+              const key = typeof name === "string" ? name : "";
+              const brand = brands.find((b) => b.brand_id === key);
+              return [
+                new Intl.NumberFormat("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                  maximumFractionDigits: 0,
+                }).format(num),
+                brand?.brand_name ?? key,
+              ];
+            }}
+            labelStyle={{ fontSize: 11, color: "var(--text-3)", marginBottom: 4 }}
+          />
+          <Legend
+            iconType="circle"
+            iconSize={8}
+            formatter={(value: string) => {
+              const brand = brands.find((b) => b.brand_id === value);
+              return (
+                <span style={{ fontSize: 11, color: "var(--text-2)" }}>
+                  {brand?.brand_name ?? value}
+                </span>
+              );
+            }}
+          />
+          {brands.map((b, i) => (
+            <Line
+              key={b.brand_id}
+              type="monotone"
+              dataKey={b.brand_id}
+              stroke={b.brand_color ?? BRAND_COLORS[i % BRAND_COLORS.length]}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -455,11 +791,13 @@ function Metric({
   value,
   severity,
   hint,
+  extra,
 }: {
   label: string;
   value: string;
   severity: Severity;
   hint?: string;
+  extra?: string;
 }) {
   return (
     <div
@@ -501,6 +839,18 @@ function Metric({
           }}
         >
           {hint}
+        </div>
+      )}
+      {extra && (
+        <div
+          style={{
+            fontSize: 10,
+            color: "#A16207",
+            marginTop: 3,
+            fontStyle: "italic",
+          }}
+        >
+          {extra}
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 // Tipos e funções puras ficam em wbr-shared.ts (importável por Client Components).
 
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
-import type { WbrBrandKpi, WbrPayload } from "./wbr-shared";
+import type { WbrBrandKpi, WbrPayload, WbrTrendPoint } from "./wbr-shared";
 
 export type { WbrBrandKpi, WbrPayload } from "./wbr-shared";
 export { cmvSeverity, primeSeverity, receitaSeverity, type Severity } from "./wbr-shared";
@@ -29,6 +29,31 @@ export function currentWeekIso(): string {
 /** Recebe 'YYYY-MM-DD' e retorna primeiro dia do mês 'YYYY-MM-01'. */
 function monthFirstDay(iso: string): string {
   return iso.slice(0, 7) + "-01";
+}
+
+/** Número ISO da semana (1-53) a partir de uma segunda-feira ISO. */
+function isoWeekNumber(mondayIso: string): number {
+  const d = new Date(mondayIso + "T00:00:00Z");
+  // Cálculo ISO week: quarta-feira da semana determina o ano/número
+  const dayOfYear = Math.floor(
+    (d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86_400_000,
+  );
+  return Math.ceil(dayOfYear / 7);
+}
+
+/**
+ * Retorna os starts (segunda-feira) das últimas N semanas incluindo a referência,
+ * em ordem cronológica (mais antigo primeiro).
+ */
+function lastNWeekStarts(refMondayIso: string, n: number): string[] {
+  const result: string[] = [];
+  const ref = new Date(refMondayIso + "T00:00:00Z");
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(ref);
+    d.setUTCDate(ref.getUTCDate() - i * 7);
+    result.push(d.toISOString().slice(0, 10));
+  }
+  return result;
 }
 
 export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
@@ -60,6 +85,7 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
       total_eventos: 0,
       total_headcount: 0,
       total_alertas_criticos: 0,
+      trend: [],
     };
   }
   const brandIds = brands.map((b) => b.id);
@@ -114,17 +140,18 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     );
   }
 
-  // 4) DRE do mês (snapshot)
+  // 4) DRE do mês (snapshot) — inclui receita_bruta como contexto pra semanas sem entries
   type DreRow = {
     brand_id: string;
     competencia: string;
+    receita_bruta: number;
     cmv_pct: number | null;
     prime_cost_pct: number | null;
     ebitda_pct: number | null;
   };
   const { data: dre } = await supabase
     .from("v_dre_consolidado")
-    .select("brand_id, competencia, cmv_pct, prime_cost_pct, ebitda_pct")
+    .select("brand_id, competencia, receita_bruta, cmv_pct, prime_cost_pct, ebitda_pct")
     .eq("competencia", monthCompetencia)
     .returns<DreRow[]>();
   const dreMap = new Map<string, DreRow>();
@@ -143,7 +170,7 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
   const cfgMap = new Map<string, CfgRow>();
   for (const r of cfg ?? []) cfgMap.set(r.brand_id, r);
 
-  // 6) Headcount por marca
+  // 6) Headcount por marca + breakdown por departamento
   type HcRow = { brand_id: string; headcount_ativo: number };
   const { data: hc } = await supabase
     .from("v_headcount_por_marca")
@@ -151,6 +178,27 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     .returns<HcRow[]>();
   const hcMap = new Map<string, number>();
   for (const r of hc ?? []) hcMap.set(r.brand_id, r.headcount_ativo);
+
+  // 6b) Breakdown por departamento (employees → units → brand_id)
+  type EmpDeptRow = {
+    departamento: string | null;
+    unit: { brand_id: string } | { brand_id: string }[] | null;
+  };
+  const { data: empDepts } = await supabase
+    .from("employees")
+    .select("departamento, unit:units(brand_id)")
+    .eq("ativo", true)
+    .returns<EmpDeptRow[]>();
+  // brand_id → { departamento: count }
+  const deptByBrand = new Map<string, Map<string, number>>();
+  for (const e of empDepts ?? []) {
+    const u = Array.isArray(e.unit) ? e.unit[0] : e.unit;
+    if (!u?.brand_id) continue;
+    const dept = e.departamento ?? "Sem departamento";
+    const inner = deptByBrand.get(u.brand_id) ?? new Map<string, number>();
+    inner.set(dept, (inner.get(dept) ?? 0) + 1);
+    deptByBrand.set(u.brand_id, inner);
+  }
 
   // 7) Eventos da semana
   type EvRow = { brand_id: string; status: string };
@@ -167,11 +215,18 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     eventsByBrand.set(e.brand_id, arr);
   }
 
-  // 8) Alertas (atual)
-  type AlertRow = { brand_id: string; severidade: string };
+  // 8) Alertas (atual) — busca detalhes completos pra exibir no WBR
+  type AlertRow = {
+    brand_id: string;
+    severidade: "warning" | "error";
+    tipo_alerta: string;
+    mensagem: string;
+    resource_id: string;
+    created_at: string;
+  };
   const { data: alerts } = await supabase
     .from("v_alertas")
-    .select("brand_id, severidade")
+    .select("brand_id, severidade, tipo_alerta, mensagem, resource_id, created_at")
     .returns<AlertRow[]>();
   const alertsByBrand = new Map<string, AlertRow[]>();
   for (const a of alerts ?? []) {
@@ -209,22 +264,82 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
       receita_projetada,
       receita_gap_abs,
       receita_gap_pct,
+      // Receita mensal do DRE como contexto quando não há entries na semana
+      receita_mensal_dre: dreRow?.receita_bruta ?? null,
       cmv_pct: dreRow?.cmv_pct ?? null,
       cmv_meta: cfgRow?.meta_cmv_pct ?? null,
       prime_cost_pct: dreRow?.prime_cost_pct ?? null,
       prime_cost_meta: cfgRow?.meta_prime_cost_pct ?? null,
       ebitda_pct: dreRow?.ebitda_pct ?? null,
       headcount_ativo: hcMap.get(b.id) ?? 0,
+      headcount_breakdown: Array.from(
+        deptByBrand.get(b.id)?.entries() ?? [],
+      )
+        .map(([departamento, count]) => ({ departamento, count }))
+        .sort((a, z) => z.count - a.count),
       eventos_total: eventos.length,
       eventos_concluidos,
       eventos_em_andamento,
       eventos_pendentes,
       alertas_total: alertasArr.length,
-      alertas_criticos: alertasArr.filter(
-        (a) => a.severidade === "error" || a.severidade === "critical",
-      ).length,
+      alertas_criticos: alertasArr.filter((a) => a.severidade === "error").length,
+      alertas_detalhe: alertasArr.map((a) => ({
+        tipo_alerta: a.tipo_alerta,
+        severidade: a.severidade,
+        mensagem: a.mensagem,
+        resource_id: a.resource_id,
+        created_at: a.created_at,
+      })),
     };
   });
+
+  // 10) Trend — últimas 8 semanas de receita por marca
+  const weekStarts = lastNWeekStarts(weekStart, 8);
+  const trendStart = weekStarts[0]; // 8 semanas atrás
+  const trendEnd = `${weekEnd}T23:59:59Z`;
+
+  type TrendEntryRow = {
+    valor: number;
+    natureza: "receita" | "despesa";
+    data_lancamento: string;
+    period: { brand_id: string } | { brand_id: string }[] | null;
+  };
+  const { data: trendEntries } = await supabase
+    .from("cash_flow_entries")
+    .select("valor, natureza, data_lancamento, period:financial_periods(brand_id)")
+    .gte("data_lancamento", trendStart)
+    .lte("data_lancamento", weekEnd)
+    .eq("natureza", "receita")
+    .not("status", "in", "(cancelado,rejeitado)")
+    .returns<TrendEntryRow[]>();
+
+  // Agrupa por (week_start, brand_id)
+  const trendMap = new Map<string, Map<string, number>>();
+  for (const e of trendEntries ?? []) {
+    const p = Array.isArray(e.period) ? e.period[0] : e.period;
+    if (!p?.brand_id) continue;
+    // Descobre a semana desta entrada
+    const { start: ws } = weekRange(e.data_lancamento);
+    const inner = trendMap.get(ws) ?? new Map<string, number>();
+    inner.set(p.brand_id, (inner.get(p.brand_id) ?? 0) + Number(e.valor));
+    trendMap.set(ws, inner);
+  }
+
+  const trend: WbrTrendPoint[] = weekStarts.map((ws) => {
+    const weekNum = isoWeekNumber(ws);
+    const byBrand = trendMap.get(ws) ?? new Map<string, number>();
+    return {
+      week_start: ws,
+      week_label: `Sem ${weekNum}`,
+      brands: brands.map((b) => ({
+        brand_id: b.id,
+        receita: byBrand.get(b.id) ?? 0,
+      })),
+    };
+  });
+
+  // Suprime o trendEnd warning
+  void trendEnd;
 
   return {
     weekStart,
@@ -235,6 +350,7 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     total_eventos: brandsKpi.reduce((a, b) => a + b.eventos_total, 0),
     total_headcount: brandsKpi.reduce((a, b) => a + b.headcount_ativo, 0),
     total_alertas_criticos: brandsKpi.reduce((a, b) => a + b.alertas_criticos, 0),
+    trend,
   };
 }
 
