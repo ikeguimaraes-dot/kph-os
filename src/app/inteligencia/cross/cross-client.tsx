@@ -64,7 +64,7 @@ export function CrossClient({
       </div>
 
       {!payload || payload.rows.length === 0 ? (
-        <EmptyState />
+        <EmptyState periodo={periodo} />
       ) : (
         <>
           {/* KPI header rows */}
@@ -283,7 +283,7 @@ function BrandKpiCard({
   );
 }
 
-function EmptyState() {
+function EmptyState({ periodo }: { periodo: string }) {
   return (
     <div
       style={{
@@ -302,7 +302,7 @@ function EmptyState() {
           marginBottom: 6,
         }}
       >
-        Sem dados financeiros para {"{periodo}"}
+        Sem dados financeiros para {periodo}
       </div>
       <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
         Registre lançamentos no módulo Financeiro para este período aparecer aqui.
