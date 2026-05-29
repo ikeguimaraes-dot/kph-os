@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 const COMMANDS = [
+  // ── Orquestrador HOS ──────────────────────────────────────────────────────
   {
     name: 'hos',
     description: 'Consulta o Orquestrador HOS em linguagem natural',
@@ -18,7 +19,7 @@ const COMMANDS = [
     description: 'Aprovar uma execução no Orquestrador HOS',
     options: [
       {
-        type: 3, // STRING
+        type: 3,
         name: 'run_id',
         description: 'ID da execução (UUID)',
         required: true,
@@ -34,6 +35,79 @@ const COMMANDS = [
         name: 'run_id',
         description: 'ID da execução (UUID)',
         required: true,
+      },
+    ],
+  },
+  // ── KPH AI Agents ─────────────────────────────────────────────────────────
+  {
+    name: 'financeiro',
+    description: 'Analisa DRE, CMV, EBITDA ou dados financeiros de qualquer marca KPH',
+    options: [
+      {
+        type: 3,
+        name: 'dados',
+        description: 'Ex: "Meet & Eat maio — receita R$280k, CMV food 31%, bebidas 48%, EBITDA 14%"',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'cardapio',
+    description: 'Engenharia de cardápio — CMV por item, matriz Star/Plow Horse/Puzzle/Dog',
+    options: [
+      {
+        type: 3,
+        name: 'itens',
+        description: 'Ex: "Filé mignon: custo R$42, preço R$128 | Risoto: custo R$18, preço R$72"',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'copy',
+    description: 'Valida copy, captions ou textos institucionais contra a voz KPH/HOS',
+    options: [
+      {
+        type: 3,
+        name: 'texto',
+        description: 'Cole o texto a ser avaliado',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'conteudo',
+    description: 'Gera calendário editorial para marca KPH (Meet & Eat, Klauss, The Forge...)',
+    options: [
+      {
+        type: 3,
+        name: 'marca',
+        description: 'Ex: "Klauss - junho" ou "Meet & Eat - julho, foco em eventos"',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'operacao',
+    description: 'Gera Ordem de Serviço (pré-abertura, turno, fechamento) seguindo Método FOME',
+    options: [
+      {
+        type: 3,
+        name: 'marca',
+        description: 'Ex: "Meet & Eat - pré-abertura jantar" ou "Klauss - fechamento"',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'aprender',
+    description: 'Analisa o stack KPH AI e retorna relatório de evolução com gaps e melhorias',
+    options: [
+      {
+        type: 3,
+        name: 'contexto',
+        description: 'Contexto adicional para análise (opcional)',
+        required: false,
       },
     ],
   },

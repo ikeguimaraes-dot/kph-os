@@ -2,6 +2,7 @@ import { NextRequest, after } from 'next/server'
 import { verifyDiscordSignature } from '@/lib/discord/verify'
 import { submitRunDecisionFromDiscord } from '@/lib/orquestrador/actions'
 import { executeCommander } from '@/lib/orquestrador/commander'
+import { executeKphAgent } from '@/lib/orquestrador/kph-agents'
 
 // Discord interaction types
 const PING = 1
@@ -60,6 +61,26 @@ export async function POST(req: NextRequest) {
       const token = body.token
       after(async () => {
         await executeCommander(pergunta, token)
+      })
+      return Response.json({ type: 5 }) // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
+    }
+
+    // KPH AI Agent commands — all deferred (async via after())
+    const KPH_AGENT_COMMANDS: Record<string, string> = {
+      financeiro: 'dados',
+      cardapio: 'itens',
+      copy: 'texto',
+      conteudo: 'marca',
+      operacao: 'marca',
+      aprender: 'contexto',
+    }
+
+    if (commandName in KPH_AGENT_COMMANDS) {
+      const inputOption = KPH_AGENT_COMMANDS[commandName]!
+      const input: string = body.data?.options?.find((o: any) => o.name === inputOption)?.value ?? ''
+      const token: string = body.token
+      after(async () => {
+        await executeKphAgent(commandName, input, token)
       })
       return Response.json({ type: 5 }) // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
     }
