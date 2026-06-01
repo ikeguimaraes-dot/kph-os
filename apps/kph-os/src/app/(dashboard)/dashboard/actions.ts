@@ -267,7 +267,7 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
         supabase.from("v_eventos_kpi").select("*"),
         supabase
           .from("v_dre_consolidado")
-          .select("brand_id, receita_bruta")
+          .select("brand_id, receita_bruta, competencia")
           .eq("competencia", competenciaAtual),
         supabase.from("v_headcount_por_marca").select("*"),
         supabase
@@ -282,10 +282,27 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
 
     const kpiRows = (kpiRes.data ?? []) as EventosKpiRow[];
     const headcountRows = (headcountRes.data ?? []) as HeadcountMarcaRow[];
-    const dreRows = (dreRes.data ?? []) as Array<{
-      brand_id: string;
-      receita_bruta: number | string | null;
-    }>;
+    type DreRow = { brand_id: string; receita_bruta: number | string | null; competencia: string };
+    let dreRows = (dreRes.data ?? []) as DreRow[];
+    let receita_dre_label: string | undefined;
+
+    // Fallback: se o mês atual não tem DRE, usa o mês mais recente disponível.
+    if (dreRows.length === 0) {
+      const { data: fallback } = await supabase
+        .from("v_dre_consolidado")
+        .select("brand_id, receita_bruta, competencia")
+        .order("competencia", { ascending: false })
+        .limit(20);
+      if (fallback && fallback.length > 0) {
+        const typed = fallback as DreRow[];
+        const mostRecent = typed[0]!.competencia;
+        dreRows = typed.filter((r) => r.competencia === mostRecent);
+        const [y, m] = mostRecent.split("-");
+        const monthNames = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+        const monthIdx = parseInt(m ?? "1", 10) - 1;
+        receita_dre_label = `${monthNames[monthIdx] ?? m}/${(y ?? "2026").slice(2)}`;
+      }
+    }
 
     const kpisMes = kpiRows.filter(
       (r) => (r.mes ?? "").slice(0, 7) === atualKey,
@@ -299,10 +316,9 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
       (s, r) => s + Number(r.receita_prevista ?? 0),
       0,
     );
-    // Receita realizada vem do DRE (cash_flow_entries — engloba todas as
-    // categorias: salão, eventos, bar, delivery). Fallback pra
-    // v_eventos_kpi.receita_realizada (só eventos concluídos) quando o
-    // financeiro do mês ainda não foi lançado.
+    // Receita realizada vem do DRE (engloba todas as categorias: salão, eventos,
+    // bar, delivery). Fallback pra v_eventos_kpi.receita_realizada (só eventos
+    // concluídos) quando o DRE não tem nenhum período disponível.
     const receita_dre = dreRows.reduce(
       (s, r) => s + Number(r.receita_bruta ?? 0),
       0,
@@ -326,6 +342,7 @@ export async function getResumoGrupo(): Promise<ResumoGrupo> {
       total_eventos_mes,
       receita_prevista_mes,
       receita_realizada_mes,
+      receita_dre_label,
       headcount_total,
       folha_bruta_total,
       eventos_proximos_7d: prox7Res.count ?? 0,

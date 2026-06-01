@@ -35,6 +35,8 @@ export type ResumoGrupo = {
   total_eventos_mes: number;
   receita_prevista_mes: number;
   receita_realizada_mes: number;
+  /** Label do período do DRE quando diferente do mês atual (ex: "abr/26"). */
+  receita_dre_label?: string;
   headcount_total: number;
   folha_bruta_total: number;
   eventos_proximos_7d: number;

@@ -147,7 +147,7 @@ export default async function DashboardPage() {
         <KpiCard
           label="Receita prevista (mês)"
           value={currencyFullFmt.format(resumo.receita_prevista_mes)}
-          sub={`${currencyFmt.format(resumo.receita_realizada_mes)} realizado · ${Math.round(pctRealizadoGrupo)}%`}
+          sub={`${currencyFmt.format(resumo.receita_realizada_mes)} realizado${resumo.receita_dre_label ? ` (${resumo.receita_dre_label})` : ""} · ${Math.round(pctRealizadoGrupo)}%`}
         >
           <ProgressBar
             value={resumo.receita_realizada_mes}
