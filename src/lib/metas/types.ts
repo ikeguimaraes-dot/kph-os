@@ -39,10 +39,15 @@ export const SEMAFORO_COLOR: Record<SemaforoStatus, { fg: string; bg: string }> 
   sem_dados:{ fg: "var(--text-3)", bg: "var(--surface-2)" },
 };
 
+// Thresholds KPH — alinhados com os benchmarks do grupo:
+// Verde: ≥ 90% da meta · Âmbar: 70–89% · Vermelho: < 70%
+export const SEMAFORO_THRESHOLD_OK    = 90; // %
+export const SEMAFORO_THRESHOLD_ALERTA = 70; // %
+
 /**
  * Classifica uma meta vs realizado em semáforo.
  * - higher_better (receita, ticket, NPS, headcount, eventos):
- *     >= 100% ok · >= 80% alerta · < 80% ruim
+ *     >= 90% ok · >= 70% alerta · < 70% ruim
  * - lower_better (CMV%, prime cost%):
  *     realizado <= meta ok · até +5pp alerta · mais ruim
  *     Quando lower_better, comparar absoluto, não percentual.
@@ -56,8 +61,8 @@ export function classifySemaforo(
   if (direction === "higher_better") {
     if (meta === 0) return realizado >= 0 ? "ok" : "ruim";
     const pct = (realizado / meta) * 100;
-    if (pct >= 100) return "ok";
-    if (pct >= 80) return "alerta";
+    if (pct >= SEMAFORO_THRESHOLD_OK) return "ok";
+    if (pct >= SEMAFORO_THRESHOLD_ALERTA) return "alerta";
     return "ruim";
   }
   // lower_better: realizado <= meta é bom

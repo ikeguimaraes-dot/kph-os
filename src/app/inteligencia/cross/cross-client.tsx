@@ -292,21 +292,40 @@ function EmptyState({ periodo }: { periodo: string }) {
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
+        maxWidth: 520,
+        margin: "0 auto",
       }}
     >
+      <div style={{ fontSize: 36, marginBottom: 14 }} aria-hidden="true">📊</div>
       <div
         style={{
-          fontSize: 14,
-          fontWeight: 600,
+          fontSize: 15,
+          fontWeight: 700,
           color: "var(--text)",
-          marginBottom: 6,
+          marginBottom: 8,
+          fontFamily: "var(--font-fraunces, serif)",
         }}
       >
-        Sem dados financeiros para {periodo}
+        O Cross precisa de dados de duas marcas.
       </div>
-      <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
-        Registre lançamentos no módulo Financeiro para este período aparecer aqui.
+      <p style={{ fontSize: 13, color: "var(--text-3)", margin: "0 0 16px", lineHeight: 1.65 }}>
+        Madonna e Meet &amp; Eat já têm dados de DRE para {periodo}?
       </p>
+      <a
+        href="/financeiro"
+        style={{
+          display: "inline-block",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#C4622D",
+          textDecoration: "none",
+          border: "1px solid #C4622D",
+          borderRadius: 8,
+          padding: "6px 14px",
+        }}
+      >
+        → Verificar lançamentos
+      </a>
     </div>
   );
 }

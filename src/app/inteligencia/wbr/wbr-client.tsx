@@ -37,6 +37,8 @@ import {
   type WbrPayload,
   type WbrTrendPoint,
 } from "@/lib/inteligencia/wbr-shared";
+import { calcIntelligenceScore } from "@/lib/inteligencia/intelligence-score";
+import type { WbrInsight } from "./actions";
 
 const SEV_BG: Record<Severity, string> = {
   ok: "rgba(34,197,94,0.16)",
@@ -63,9 +65,11 @@ function shiftDateIso(iso: string, days: number): string {
 export function WbrClient({
   refDate,
   payload,
+  insight,
 }: {
   refDate: string;
   payload: WbrPayload | null;
+  insight?: WbrInsight | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,6 +91,7 @@ export function WbrClient({
   }
 
   const periodLabel = `${formatDateBR(payload.weekStart)} – ${formatDateBR(payload.weekEnd)}`;
+  const intelligenceScore = calcIntelligenceScore(payload);
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto" }}>
@@ -135,6 +140,7 @@ export function WbrClient({
               margin: "6px 0 4px",
               color: "var(--text)",
               letterSpacing: -0.4,
+              fontFamily: "var(--font-fraunces, serif)",
             }}
           >
             Weekly Business Review
@@ -169,6 +175,7 @@ export function WbrClient({
             type="date"
             value={refDate}
             onChange={(e) => setRef(e.target.value)}
+            aria-label="Data de referência da semana"
             style={{
               fontSize: 12,
               border: "none",
@@ -194,6 +201,12 @@ export function WbrClient({
           </button>
         </div>
       </header>
+
+      {/* KPH Intelligence Score */}
+      <IntelligenceScoreCard score={intelligenceScore} />
+
+      {/* AI Insight */}
+      {insight && <WbrInsightPanel insight={insight} />}
 
       {/* KPIs do grupo */}
       <div
@@ -468,7 +481,7 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
           label="EBITDA%"
           value={kpi.ebitda_pct == null ? "—" : `${kpi.ebitda_pct}%`}
           severity={
-            kpi.ebitda_pct == null ? "ok" : kpi.ebitda_pct >= 18 ? "ok" : kpi.ebitda_pct >= 10 ? "warn" : "danger"
+            kpi.ebitda_pct == null ? "ok" : kpi.ebitda_pct >= 18 ? "ok" : kpi.ebitda_pct >= 12 ? "warn" : "danger"
           }
           hint="snapshot mês"
         />
@@ -684,7 +697,7 @@ function TrendChart({
   const data = trend.map((point) => {
     const row: Record<string, string | number> = { week_label: point.week_label };
     for (const b of point.brands) {
-      row[b.brand_id] = b.receita;
+      if (b.receita != null) row[b.brand_id] = b.receita;
     }
     return row;
   });
@@ -778,11 +791,264 @@ function TrendChart({
               strokeWidth={2}
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}
+              connectNulls={false}
             />
           ))}
         </LineChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+function IntelligenceScoreCard({
+  score,
+}: {
+  score: ReturnType<typeof calcIntelligenceScore>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const scoreColor =
+    score.score >= 70
+      ? "#B8975A" // Ouro
+      : score.score >= 40
+      ? "#D97706" // âmbar
+      : "#C4622D"; // Brasa
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: "14px 18px",
+        marginBottom: 18,
+        display: "flex",
+        alignItems: "center",
+        gap: 18,
+        flexWrap: "wrap",
+      }}
+    >
+      {/* Score number */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+        <span
+          style={{
+            fontSize: 48,
+            fontWeight: 700,
+            color: scoreColor,
+            fontFamily: "var(--font-fraunces, serif)",
+            lineHeight: 1,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {score.score}
+        </span>
+        <span style={{ fontSize: 18, color: "var(--text-3)", fontWeight: 400 }}>
+          /100
+        </span>
+      </div>
+
+      {/* Label + delta */}
+      <div style={{ flex: 1, minWidth: 160 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 1.2,
+            textTransform: "uppercase",
+            color: "var(--text-3)",
+            marginBottom: 2,
+          }}
+        >
+          KPH Intelligence Score
+        </div>
+        {score.delta != null && (
+          <div
+            style={{
+              fontSize: 12,
+              color: score.delta >= 0 ? "#15803D" : "#B91C1C",
+              fontWeight: 600,
+            }}
+          >
+            {score.delta >= 0 ? "+" : ""}
+            {score.delta} vs semana anterior
+          </div>
+        )}
+      </div>
+
+      {/* Breakdown toggle */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: "var(--text-3)",
+          background: "none",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "5px 12px",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Ver breakdown
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+
+      {/* Breakdown panel */}
+      {open && (
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            borderTop: "1px solid var(--border)",
+            paddingTop: 12,
+            marginTop: 4,
+          }}
+        >
+          {score.breakdown.map((dim) => (
+            <div
+              key={dim.label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 12,
+              }}
+            >
+              {/* Score bar */}
+              <div
+                style={{
+                  width: 120,
+                  height: 6,
+                  borderRadius: 3,
+                  background: "var(--border)",
+                  flexShrink: 0,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${dim.score}%`,
+                    height: "100%",
+                    borderRadius: 3,
+                    background:
+                      dim.score >= 70
+                        ? "#B8975A"
+                        : dim.score >= 40
+                        ? "#D97706"
+                        : "#C4622D",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontVariantNumeric: "tabular-nums",
+                  fontWeight: 700,
+                  color: "var(--text-2)",
+                  width: 26,
+                  textAlign: "right",
+                  flexShrink: 0,
+                }}
+              >
+                {dim.score}
+              </span>
+              <span style={{ color: "var(--text-3)", flexShrink: 0 }}>
+                {dim.label}
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: "var(--text-3)",
+                  fontStyle: "italic",
+                }}
+              >
+                {dim.detail}
+              </span>
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 10,
+                  color: "var(--text-3)",
+                  flexShrink: 0,
+                }}
+              >
+                peso {dim.weight}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WbrInsightPanel({ insight }: { insight: WbrInsight }) {
+  const hora = new Date(insight.gerado_em).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <section
+      aria-live="polite"
+      style={{
+        borderLeft: "3px solid #B8975A",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderLeftColor: "#B8975A",
+        borderLeftWidth: 3,
+        borderRadius: 12,
+        padding: "14px 18px",
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            color: "#B8975A",
+            background: "rgba(184,151,90,0.14)",
+            border: "1px solid rgba(184,151,90,0.35)",
+            borderRadius: 99,
+            padding: "2px 8px",
+          }}
+        >
+          IA
+        </span>
+        <span
+          style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600 }}
+        >
+          Análise CFO · gerado às {hora}
+        </span>
+      </div>
+      <p
+        style={{
+          fontSize: 13,
+          color: "var(--text-2)",
+          margin: 0,
+          lineHeight: 1.7,
+          whiteSpace: "pre-line",
+        }}
+      >
+        {insight.text}
+      </p>
+    </section>
   );
 }
 

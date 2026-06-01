@@ -316,6 +316,8 @@ function EmptyState() {
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: 12,
+        maxWidth: 520,
+        margin: "0 auto",
       }}
     >
       <div
@@ -328,27 +330,40 @@ function EmptyState() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          margin: "0 auto 8px",
+          margin: "0 auto 14px",
         }}
       >
         <Target size={20} />
       </div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-        Sem marcas acessíveis
-      </div>
-      <p style={{ fontSize: 12, color: "var(--text-3)", margin: "6px 0 0" }}>
-        Você não tem permissão pra ver metas de nenhuma marca neste momento.
-      </p>
-      <Link
-        href="/inteligencia"
+      <div
         style={{
-          display: "inline-block",
-          marginTop: 14,
-          fontSize: 12,
-          color: "var(--brand)",
+          fontSize: 15,
+          fontWeight: 700,
+          color: "var(--text)",
+          fontFamily: "var(--font-fraunces, serif)",
+          marginBottom: 8,
         }}
       >
-        Voltar para Inteligência
+        Sem metas, sem semáforo.
+      </div>
+      <p style={{ fontSize: 13, color: "var(--text-3)", margin: "0 0 16px", lineHeight: 1.65 }}>
+        Defina a meta mensal de receita para Meet &amp; Eat e Madonna.
+        Leva 2 minutos.
+      </p>
+      <Link
+        href="/inteligencia/metas/configurar"
+        style={{
+          display: "inline-block",
+          fontSize: 12,
+          fontWeight: 600,
+          color: "#C4622D",
+          textDecoration: "none",
+          border: "1px solid #C4622D",
+          borderRadius: 8,
+          padding: "6px 14px",
+        }}
+      >
+        → Configurar metas
       </Link>
     </div>
   );

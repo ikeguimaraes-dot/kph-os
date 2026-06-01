@@ -108,20 +108,14 @@ const STATUS_CONFIG: Record<JobStatus, StatusConfig> = {
 export function OrquestradorClient({ jobs }: { jobs: HosJob[] | null }) {
   if (jobs === null) {
     return (
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: 28,
-        }}
-      >
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
-          Tabela hos_jobs não encontrada
-        </div>
-        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0, lineHeight: 1.6 }}>
-          A tabela <code>hos_jobs</code> ainda não existe ou não está acessível.
-          Verifique a migration 033 no Supabase.
+      <div style={{ textAlign: "center", padding: "60px 32px", maxWidth: 520, margin: "0 auto" }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }} aria-hidden="true">🔧</div>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", fontFamily: "var(--font-fraunces, serif)", margin: "0 0 10px" }}>
+          Nenhum job executado.
+        </h2>
+        <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.65, margin: 0 }}>
+          O Orquestrador está aguardando deploys ou sincronizações.
+          Assim que o primeiro job for executado, o histórico aparecerá aqui.
         </p>
       </div>
     );

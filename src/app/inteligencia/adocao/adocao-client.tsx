@@ -376,50 +376,58 @@ function MigrationBanner() {
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: 28,
+        borderRadius: 16,
+        padding: "48px 36px",
+        textAlign: "center",
+        maxWidth: 560,
+        margin: "0 auto",
       }}
     >
       <div
         style={{
-          fontSize: 14,
+          fontSize: 32,
+          marginBottom: 16,
+          lineHeight: 1,
+        }}
+        aria-hidden="true"
+      >
+        📊
+      </div>
+      <h2
+        style={{
+          fontSize: 18,
           fontWeight: 700,
           color: "var(--text)",
-          marginBottom: 8,
+          margin: "0 0 10px",
+          fontFamily: "var(--font-fraunces, serif)",
         }}
       >
-        Migration pendente
-      </div>
-      <p style={{ fontSize: 12, color: "var(--text-3)", margin: "0 0 14px", lineHeight: 1.6 }}>
-        A tabela <code>page_views</code> ainda não existe no banco. Execute o SQL abaixo no Supabase SQL Editor:
-      </p>
-      <pre
+        O KPH-OS começou a rastrear seu uso hoje.
+      </h2>
+      <p
         style={{
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: 14,
-          fontSize: 11,
-          color: "var(--text-2)",
-          overflowX: "auto",
-          lineHeight: 1.7,
+          fontSize: 13,
+          color: "var(--text-3)",
+          lineHeight: 1.65,
+          margin: "0 0 20px",
+          maxWidth: 440,
+          marginLeft: "auto",
+          marginRight: "auto",
         }}
       >
-        {`CREATE TABLE IF NOT EXISTS public.page_views (
-  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
-  path        text        NOT NULL,
-  visited_at  timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_page_views_path    ON public.page_views(path);
-CREATE INDEX IF NOT EXISTS idx_page_views_user    ON public.page_views(user_id);
-CREATE INDEX IF NOT EXISTS idx_page_views_visited ON public.page_views(visited_at DESC);
-ALTER TABLE public.page_views ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "select_own" ON public.page_views FOR SELECT
-  USING (user_id = auth.uid() OR kph_is_founder_or_cfo());
-CREATE POLICY "insert_own" ON public.page_views FOR INSERT
-  WITH CHECK (user_id = auth.uid());`}
-      </pre>
+        Volte em 7 dias para ver os primeiros padrões — quais módulos o time
+        mais acessa, quando usam o sistema, e quem são os power users.
+      </p>
+      <p
+        style={{
+          fontSize: 11,
+          color: "var(--text-3)",
+          margin: 0,
+          opacity: 0.7,
+        }}
+      >
+        Ativação pendente · Entre em contato com a equipe de engenharia
+      </p>
     </div>
   );
 }

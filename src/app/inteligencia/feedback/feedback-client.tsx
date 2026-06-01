@@ -531,66 +531,37 @@ function MigrationBanner() {
     <div
       style={{
         background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: 28,
+        border: "1px dashed var(--border)",
+        borderRadius: 14,
+        padding: "32px 28px",
+        textAlign: "center",
+        maxWidth: 520,
       }}
     >
-      <div
+      <div style={{ fontSize: 28, marginBottom: 12 }} aria-hidden="true">💬</div>
+      <h3
         style={{
-          fontSize: 14,
+          fontSize: 16,
           fontWeight: 700,
           color: "var(--text)",
-          marginBottom: 8,
+          margin: "0 0 8px",
+          fontFamily: "var(--font-fraunces, serif)",
         }}
       >
-        Migration pendente
-      </div>
+        Histórico de feedbacks indisponível
+      </h3>
       <p
         style={{
           fontSize: 12,
           color: "var(--text-3)",
-          margin: "0 0 14px",
-          lineHeight: 1.6,
+          lineHeight: 1.65,
+          margin: 0,
         }}
       >
-        A tabela <code>feedback</code> ainda não existe no banco. Execute o SQL
-        abaixo no Supabase SQL Editor:
+        Esta funcionalidade está sendo ativada. O formulário acima está disponível
+        para novos envios. Entre em contato com a equipe de engenharia para
+        ativar o histórico completo.
       </p>
-      <pre
-        style={{
-          background: "var(--surface-2)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: 14,
-          fontSize: 11,
-          color: "var(--text-2)",
-          overflowX: "auto",
-          lineHeight: 1.7,
-        }}
-      >
-        {`CREATE TABLE IF NOT EXISTS public.feedback (
-  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
-  type        text        NOT NULL CHECK (type IN ('bug','suggestion','other')),
-  module      text        NOT NULL,
-  description text        NOT NULL,
-  priority    text        NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
-  status      text        NOT NULL DEFAULT 'open' CHECK (status IN ('open','triaged','resolved')),
-  created_at  timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_feedback_user    ON public.feedback(user_id);
-CREATE INDEX IF NOT EXISTS idx_feedback_status  ON public.feedback(status);
-CREATE INDEX IF NOT EXISTS idx_feedback_created ON public.feedback(created_at DESC);
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "select_feedback" ON public.feedback FOR SELECT
-  USING (user_id = auth.uid() OR kph_is_founder_or_cfo());
-CREATE POLICY "insert_feedback" ON public.feedback FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-CREATE POLICY "update_status" ON public.feedback FOR UPDATE
-  USING (kph_is_founder_or_cfo())
-  WITH CHECK (kph_is_founder_or_cfo());`}
-      </pre>
     </div>
   );
 }

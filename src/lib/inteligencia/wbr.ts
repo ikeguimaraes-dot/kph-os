@@ -32,14 +32,16 @@ function monthFirstDay(iso: string): string {
   return iso.slice(0, 7) + "-01";
 }
 
-/** Número ISO da semana (1-53) a partir de uma segunda-feira ISO. */
+/** Número ISO da semana (1-53) a partir de uma segunda-feira ISO. ISO 8601: a quinta-feira da semana determina o ano. */
 function isoWeekNumber(mondayIso: string): number {
   const d = new Date(mondayIso + "T00:00:00Z");
-  // Cálculo ISO week: quarta-feira da semana determina o ano/número
-  const dayOfYear = Math.floor(
-    (d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86_400_000,
+  // ISO 8601: a quinta-feira da semana determina o número e o ano da semana
+  const thursday = new Date(d);
+  thursday.setUTCDate(d.getUTCDate() + 3);
+  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
+  return Math.ceil(
+    ((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7,
   );
-  return Math.ceil(dayOfYear / 7);
 }
 
 /**
@@ -374,9 +376,10 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     return {
       week_start: ws,
       week_label: `Sem ${weekNum}`,
+      // null = sem dado → gráfico exibe gap em vez de linha artificial a zero
       brands: brands.map((b) => ({
         brand_id: b.id,
-        receita: byBrand.get(b.id) ?? 0,
+        receita: byBrand.has(b.id) ? (byBrand.get(b.id) ?? null) : null,
       })),
     };
   });

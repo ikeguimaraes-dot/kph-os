@@ -29,6 +29,7 @@ export default async function AdocaoPage() {
             margin: "6px 0 4px",
             color: "var(--text)",
             letterSpacing: -0.4,
+            fontFamily: "var(--font-fraunces, serif)",
           }}
         >
           Adoção da plataforma

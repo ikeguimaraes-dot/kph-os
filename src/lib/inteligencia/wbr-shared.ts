@@ -42,8 +42,8 @@ export type WbrTrendPoint = {
   week_start: string;
   /** "Sem 21" */
   week_label: string;
-  /** Receita realizada por brand nesta semana */
-  brands: { brand_id: string; receita: number }[];
+  /** Receita realizada por brand nesta semana. null = sem dado (linha interrompida no gráfico). */
+  brands: { brand_id: string; receita: number | null }[];
 };
 
 export type WbrPayload = {

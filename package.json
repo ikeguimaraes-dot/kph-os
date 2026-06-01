@@ -11,6 +11,7 @@
     "test": "playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@base-ui/react": "^1.4.1",
     "@hookform/resolvers": "^5.2.2",
     "@supabase/ssr": "^0.10.2",
@@ -33,6 +34,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.45.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -40,7 +42,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@playwright/test": "^1.45.0"
+    "typescript": "^5"
   }
 }

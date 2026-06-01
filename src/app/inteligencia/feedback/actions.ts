@@ -26,6 +26,7 @@
 //   USING (kph_is_founder_or_cfo())
 //   WITH CHECK (kph_is_founder_or_cfo());
 
+import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
 import { requireUser, isFounder } from "@kph/auth/server";
 import { insertJob } from "@/lib/inteligencia/orquestrador";
@@ -56,6 +57,17 @@ export type SubmitFeedbackInput = {
 export async function submitFeedback(
   input: SubmitFeedbackInput,
 ): Promise<{ id: string }> {
+  // Validação server-side (defesa em profundidade além do client)
+  if (!input.description || input.description.trim().length < 20) {
+    throw new Error("Descrição deve ter pelo menos 20 caracteres");
+  }
+  if (!["bug", "suggestion", "other"].includes(input.type)) {
+    throw new Error("Tipo inválido");
+  }
+  if (!["low", "medium", "high"].includes(input.priority)) {
+    throw new Error("Prioridade inválida");
+  }
+
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   if (!supabase) throw new Error("Supabase indisponível");
@@ -132,4 +144,6 @@ export async function cycleStatus(id: string): Promise<void> {
     .from("feedback" as never)
     .update({ status: newStatus } as never)
     .eq("id" as never, id as never);
+
+  revalidatePath("/inteligencia/feedback");
 }

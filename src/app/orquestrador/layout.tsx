@@ -3,6 +3,7 @@ import { requireUser } from "@kph/auth/server";
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
 import type { Unit } from "@kph/db/types/database";
 import { Sidebar } from "@kph/ui/sidebar";
+import { PageViewTracker } from "@/components/shell/PageViewTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function OrquestradorLayout({
 
   return (
     <AuthProvider user={user} units={units}>
+      <PageViewTracker />
       <div style={{ display: "flex", height: "100vh" }}>
         <Sidebar />
         <main style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>

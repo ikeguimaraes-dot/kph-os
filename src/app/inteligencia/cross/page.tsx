@@ -43,6 +43,7 @@ export default async function CrossPage({ searchParams }: Props) {
             margin: "6px 0 4px",
             color: "var(--text)",
             letterSpacing: -0.4,
+            fontFamily: "var(--font-fraunces, serif)",
           }}
         >
           Comparativo cross-marca
