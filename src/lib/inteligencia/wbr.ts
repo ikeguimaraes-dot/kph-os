@@ -77,7 +77,14 @@ export async function loadWbr(refDateIso: string): Promise<WbrPayload | null> {
     .eq("active", true)
     .order("name");
   type BrandRow = { id: string; name: string; slug: string; color: string | null };
-  const brands = (brandsData ?? []) as BrandRow[];
+  // Deduplica por slug — a tabela brands pode ter duas entradas ativas para a mesma
+  // marca (e.g. após migração), o que causaria duplicatas na legenda do trend chart.
+  const seenSlugs = new Set<string>();
+  const brands = ((brandsData ?? []) as BrandRow[]).filter((b) => {
+    if (seenSlugs.has(b.slug)) return false;
+    seenSlugs.add(b.slug);
+    return true;
+  });
   if (brands.length === 0) {
     return {
       weekStart,
