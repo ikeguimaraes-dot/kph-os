@@ -1,6 +1,6 @@
 import { createServiceClient } from '@kph/db/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { sendDiscordMessage } from '@/lib/discord/notify'
+import { sendDiscordMessage, DISCORD_COLORS } from '@/lib/discord/notify'
 import { autoApproveRun } from '@/lib/orquestrador/actions'
 
 const ALLOWED_PROJECTS = (process.env.ORCHESTRATOR_ALLOWED_PROJECTS || 'kph-os')
@@ -81,24 +81,35 @@ export async function POST(req: NextRequest) {
 
   if (job.auto_approve) {
     await autoApproveRun(run.id)
-    await sendDiscordMessage(
-      `✅ **Auto-aprovado** — ${job.name}\n` +
-      `**Deploy:** ${deployment_url ?? 'N/A'}\n` +
-      `Job de baixo risco — nenhuma ação necessária.\n` +
-      `**Painel:** ${baseUrl}/orquestrador/${run.id}`
-    )
+    await sendDiscordMessage('orquestrador', {
+      title: '🚀 Deploy auto-aprovado',
+      description: `**${job.name}** — job de baixo risco, nenhuma ação necessária.`,
+      color: DISCORD_COLORS.green,
+      fields: [
+        { name: 'Status', value: 'Auto-aprovado ✅', inline: true },
+        { name: 'Job ID', value: `\`${run.id}\``, inline: true },
+        { name: 'Deploy', value: deployment_url ?? 'N/A', inline: false },
+        { name: 'Painel', value: `${baseUrl}/orquestrador/${run.id}`, inline: false },
+      ],
+      timestamp: new Date().toISOString(),
+    })
     return NextResponse.json({ run_id: run.id, status: 'approved' })
   }
 
-  await sendDiscordMessage(
-    `🤖 **Orquestrador HOS** — Nova execução aguardando aprovação\n` +
-    `**Job:** ${job.name}\n` +
-    `**Evento:** ${event}\n` +
-    `**Deploy:** ${deployment_url ?? 'N/A'}\n` +
-    `**Run ID:** \`${run.id}\`\n` +
-    `Via Discord: \`/aprovar run_id:${run.id}\` ou \`/rejeitar run_id:${run.id}\`\n` +
-    `**Painel:** ${baseUrl}/orquestrador/${run.id}`
-  )
+  await sendDiscordMessage('orquestrador', {
+    title: '🚀 Deploy aguardando aprovação',
+    description: `**${job.name}** — nova execução criada via webhook.`,
+    color: DISCORD_COLORS.blue,
+    fields: [
+      { name: 'Status', value: 'Aguardando aprovação', inline: true },
+      { name: 'Job ID', value: `\`${run.id}\``, inline: true },
+      { name: 'Evento', value: event ?? 'N/A', inline: true },
+      { name: 'Deploy', value: deployment_url ?? 'N/A', inline: false },
+      { name: 'Painel', value: `${baseUrl}/orquestrador/${run.id}`, inline: false },
+    ],
+    footer: { text: 'Use /aprovar ou /rejeitar no Discord com o Job ID acima' },
+    timestamp: new Date().toISOString(),
+  })
 
   return NextResponse.json({ run_id: run.id, status: 'awaiting_approval' })
 }

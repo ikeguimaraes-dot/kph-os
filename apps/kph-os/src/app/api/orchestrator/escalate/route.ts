@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServiceClient } from '@kph/db/supabase/server'
-import { sendDiscordMessage } from '@/lib/discord/notify'
+import { sendDiscordMessage, DISCORD_COLORS } from '@/lib/discord/notify'
 
 type EscalationTier = 1 | 2 | 3
 
@@ -13,9 +13,21 @@ function getTier(createdAt: string): EscalationTier | null {
 }
 
 const TIER_LABEL: Record<EscalationTier, string> = {
-  1: '⚠️ Aguardando aprovação há mais de **2 horas**',
-  2: '🚨 **URGENTE** — Aguardando há mais de **4 horas**',
-  3: '🔴 **CRÍTICO** — Aguardando há mais de **8 horas**. Ação imediata necessária.',
+  1: 'Aguardando aprovação há mais de 2 horas',
+  2: 'URGENTE — Aguardando há mais de 4 horas',
+  3: 'CRÍTICO — Aguardando há mais de 8 horas. Ação imediata necessária.',
+}
+
+const TIER_COLOR: Record<EscalationTier, number> = {
+  1: DISCORD_COLORS.amber,
+  2: DISCORD_COLORS.red,
+  3: DISCORD_COLORS.red,
+}
+
+const TIER_EMOJI: Record<EscalationTier, string> = {
+  1: '⚠️',
+  2: '🚨',
+  3: '🔴',
 }
 
 // GET /api/orchestrator/escalate
@@ -61,15 +73,19 @@ export async function GET(req: NextRequest) {
     )
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kph-os.vercel.app'
 
-    await sendDiscordMessage(
-      `🤖 **Orquestrador HOS — Escalação**\n` +
-      `${TIER_LABEL[tier]}\n` +
-      `**Job:** ${jobName}\n` +
-      `**Run ID:** \`${run.id}\`\n` +
-      `**Tempo aguardando:** ${hoursElapsed}h\n` +
-      `Para decidir via Discord: \`/aprovar run_id:${run.id}\` ou \`/rejeitar run_id:${run.id}\`\n` +
-      `**Painel:** ${baseUrl}/orquestrador/${run.id}`
-    )
+    await sendDiscordMessage('orquestrador', {
+      title: `${TIER_EMOJI[tier]} Orquestrador HOS — Escalação`,
+      description: TIER_LABEL[tier],
+      color: TIER_COLOR[tier],
+      fields: [
+        { name: 'Job', value: jobName, inline: true },
+        { name: 'Tempo aguardando', value: `${hoursElapsed}h`, inline: true },
+        { name: 'Run ID', value: `\`${run.id}\``, inline: false },
+        { name: 'Painel', value: `${baseUrl}/orquestrador/${run.id}`, inline: false },
+      ],
+      footer: { text: 'Use /aprovar ou /rejeitar no Discord com o Run ID acima' },
+      timestamp: new Date().toISOString(),
+    })
 
     await (supabase as any)
       .from('hos_runs')

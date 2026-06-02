@@ -3,6 +3,7 @@
 // Requer ANTHROPIC_API_KEY configurada no ambiente.
 
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
+import { sendDiscordMessage, DISCORD_COLORS } from "@/lib/discord/notify";
 
 // ── Catálogo dos 40 agentes por categoria ─────────────────────────────
 
@@ -308,6 +309,35 @@ Analise e responda APENAS com JSON válido nesta estrutura exata (sem markdown, 
       },
     })
     .then(() => {/* silencioso */});
+
+  // 7) Notify Discord #orquestrador
+  const dormantCount = ALL_AGENTS.length - activeAgents.size;
+  await sendDiscordMessage('orquestrador', {
+    title: `🧠 Learning Machine — Semana ${week}/${year}`,
+    description: insights
+      ? `${insights.headline}\n\n${insights.insight_da_semana}`
+      : `Relatório semanal gerado. ${activeAgents.size} agentes ativos de ${ALL_AGENTS.length}.`,
+    color: DISCORD_COLORS.purple,
+    fields: [
+      {
+        name: 'Score Operacional',
+        value: insights?.score_operacional != null ? `${insights.score_operacional}/100` : 'N/A',
+        inline: true,
+      },
+      {
+        name: 'Agentes Ativos',
+        value: `${activeAgents.size}/${ALL_AGENTS.length}`,
+        inline: true,
+      },
+      {
+        name: 'Agentes Dormentes',
+        value: `${dormantCount}`,
+        inline: true,
+      },
+    ],
+    footer: { text: 'Próximo relatório: sexta-feira 08:00 BRT' },
+    timestamp: new Date().toISOString(),
+  });
 
   return {
     id: (saved as { id: string }).id,
