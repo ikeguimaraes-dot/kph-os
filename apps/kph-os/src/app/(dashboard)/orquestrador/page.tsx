@@ -1,4 +1,6 @@
 import { listOrchestratorRuns } from "@/lib/orquestrador/actions";
+import { loadLMReports } from "@/lib/orquestrador/learning-machine";
+import type { LMReport } from "@/lib/orquestrador/learning-machine";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -6,7 +8,12 @@ import { ptBR } from "date-fns/locale";
 export const dynamic = "force-dynamic";
 
 export default async function OrchestratorPage() {
-  const runs = await listOrchestratorRuns();
+  const [runs, lmReports] = await Promise.all([
+    listOrchestratorRuns(),
+    loadLMReports(1),
+  ]);
+
+  const latestLM = lmReports?.[0] ?? null;
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -22,6 +29,9 @@ export default async function OrchestratorPage() {
         </div>
       </div>
 
+      {/* Learning Machine Panel */}
+      {latestLM && <LearningMachinePanel report={latestLM} />}
+
       <div className="grid gap-4">
         <div className="rounded-md border bg-card text-card-foreground shadow-sm p-6">
           <div className="flex flex-col space-y-1.5 pb-4">
@@ -30,7 +40,7 @@ export default async function OrchestratorPage() {
               Acompanhe e aprove as ações sugeridas pelos Agentes de IA.
             </p>
           </div>
-          
+
           <div className="w-full overflow-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b">
@@ -78,7 +88,7 @@ export default async function OrchestratorPage() {
                         {formatDistanceToNow(new Date(run.created_at), { addSuffix: true, locale: ptBR })}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link 
+                        <Link
                           href={`/orquestrador/${run.id}`}
                           className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
                         >
@@ -97,6 +107,120 @@ export default async function OrchestratorPage() {
   );
 }
 
+function LearningMachinePanel({ report }: { report: LMReport }) {
+  const score = report.insights?.score_operacional ?? null;
+  const scoreColor =
+    score === null ? "text-muted-foreground" :
+    score >= 80 ? "text-green-600 dark:text-green-400" :
+    score >= 60 ? "text-yellow-600 dark:text-yellow-400" :
+    "text-red-600 dark:text-red-400";
+
+  return (
+    <div className="rounded-md border bg-card text-card-foreground shadow-sm p-6">
+      <div className="flex items-start justify-between pb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">🧠</span>
+            <h3 className="text-2xl font-semibold leading-none tracking-tight">
+              Learning Machine
+            </h3>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+              Semana {report.week_number}/{report.year}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {report.insights?.headline ?? "Análise semanal dos 40 agentes IA do KPH OS."}
+          </p>
+        </div>
+        {score !== null && (
+          <div className="text-right">
+            <div className={`text-4xl font-bold tabular-nums ${scoreColor}`}>{score}</div>
+            <div className="text-xs text-muted-foreground">score operacional</div>
+          </div>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="rounded-md bg-muted/50 p-3">
+          <div className="text-2xl font-bold tabular-nums">{report.total_runs}</div>
+          <div className="text-xs text-muted-foreground">execuções</div>
+        </div>
+        <div className="rounded-md bg-muted/50 p-3">
+          <div className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+            {report.active_agents}
+          </div>
+          <div className="text-xs text-muted-foreground">agentes ativos</div>
+        </div>
+        <div className="rounded-md bg-muted/50 p-3">
+          <div className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+            {report.inactive_agents}
+          </div>
+          <div className="text-xs text-muted-foreground">agentes dormentes</div>
+        </div>
+      </div>
+
+      {/* Top agents */}
+      {report.top_agents && report.top_agents.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Top agentes da semana
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {report.top_agents.map((a) => (
+              <span
+                key={a.nome}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+              >
+                {a.nome}
+                <span className="opacity-70">×{a.runs}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Insight da semana */}
+      {report.insights?.insight_da_semana && (
+        <div className="border-l-4 border-yellow-400 pl-3 py-1">
+          <p className="text-sm text-foreground/80 italic leading-relaxed">
+            {report.insights.insight_da_semana}
+          </p>
+        </div>
+      )}
+
+      {/* Next steps */}
+      {report.insights?.proximos_passos && report.insights.proximos_passos.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Próximos passos
+          </div>
+          <div className="space-y-1">
+            {report.insights.proximos_passos.slice(0, 3).map((step, i) => {
+              const prioColor =
+                step.prioridade === "alta" ? "text-red-600 dark:text-red-400" :
+                step.prioridade === "media" ? "text-yellow-600 dark:text-yellow-400" :
+                "text-muted-foreground";
+              return (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className={`text-xs font-bold uppercase mt-0.5 shrink-0 w-10 ${prioColor}`}>
+                    {step.prioridade}
+                  </span>
+                  <span className="text-foreground/80">{step.acao}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 text-xs text-muted-foreground">
+        Gerado em {new Date(report.generated_at).toLocaleString("pt-BR")} · Cron toda sexta 08:00 BRT
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300",
@@ -106,7 +230,7 @@ function StatusBadge({ status }: { status: string }) {
     rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
   };
-  
+
   const labels: Record<string, string> = {
     pending: "Pendente",
     running: "Executando",
