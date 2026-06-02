@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { requireUser } from "@kph/auth/server";
+import { InsightPanel } from "@/components/intelligence/InsightPanel";
 import { Plus } from "lucide-react";
 
 import {
@@ -118,6 +119,17 @@ export default async function EventosPage({
       </Suspense>
 
       <EventosTable events={events} />
+
+      <InsightPanel
+        module="operacao"
+        context={{
+          total_eventos: stats.total,
+          confirmados: stats.confirmados,
+          rascunhos: stats.rascunhos,
+          realizados: stats.realizados,
+        }}
+        title="Insight Operacional"
+      />
     </div>
   );
 }

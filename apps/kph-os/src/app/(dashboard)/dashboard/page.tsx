@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { requireUser } from "@kph/auth/server";
+import { InsightPanel } from "@/components/intelligence/InsightPanel";
 import {
   getAlertas,
   getAniversariantes,
@@ -337,6 +338,20 @@ export default async function DashboardPage() {
           <AlertasPanel alertas={alertas} />
         </div>
       </div>
+
+      <InsightPanel
+        module="dashboard"
+        context={{
+          total_marcas_ativas: resumo.total_marcas_ativas,
+          receita_prevista_mes: resumo.receita_prevista_mes,
+          receita_realizada_mes: resumo.receita_realizada_mes,
+          alertas_criticos: resumo.alertas_criticos,
+          eventos_aprovados: breakdown.aprovados,
+          eventos_em_andamento: breakdown.em_andamento,
+          eventos_pendentes: breakdown.pendentes,
+          headcount_total: headcount.total,
+        }}
+      />
     </div>
   );
 }
