@@ -1,5 +1,6 @@
 // Loader server-side para o Orquestrador.
-// hos_jobs e hos_runs usam (supabase as any) — ver CLAUDE.md §5.5.
+// hos_jobs        = catálogo de tipos (existente, read-only)
+// orquestrador_jobs = histórico de execuções (migration 068)
 
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
 
@@ -10,7 +11,8 @@ export type JobType =
   | "data_sync"
   | "alert_generated"
   | "feedback_received"
-  | "insight_generated";
+  | "insight_generated"
+  | "learning_machine_weekly";
 
 export type JobStatus = "pending" | "running" | "success" | "error";
 
@@ -19,11 +21,12 @@ export type HosJob = {
   type: JobType;
   status: JobStatus;
   payload: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
   created_at: string;
   updated_at: string | null;
 };
 
-/** Carrega os últimos 100 jobs do orquestrador. */
+/** Carrega os últimos 100 jobs do orquestrador_jobs (histórico de execuções). */
 export async function loadJobs(): Promise<HosJob[] | null> {
   try {
     const supabase = await createSupabaseServerClient();
@@ -31,8 +34,8 @@ export async function loadJobs(): Promise<HosJob[] | null> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
-      .from("hos_jobs")
-      .select("id, type, status, payload, created_at, updated_at")
+      .from("orquestrador_jobs")
+      .select("id, type, status, payload, result, created_at, updated_at")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -43,18 +46,19 @@ export async function loadJobs(): Promise<HosJob[] | null> {
   }
 }
 
-/** Insere um novo job no orquestrador. */
+/** Insere um novo job no histórico de execuções. */
 export async function insertJob(
   type: JobType,
   payload: Record<string, unknown>,
+  status: JobStatus = "pending",
 ): Promise<void> {
   try {
     const supabase = await createSupabaseServerClient();
     if (!supabase) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
-      .from("hos_jobs")
-      .insert({ type, status: "pending", payload });
+      .from("orquestrador_jobs")
+      .insert({ type, status, payload });
   } catch {
     // silencioso — inserção de job nunca deve quebrar o caller
   }

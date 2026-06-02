@@ -1,12 +1,17 @@
 import { requireUser } from "@kph/auth/server";
 import { loadJobs } from "@/lib/inteligencia/orquestrador";
+import { loadLMReports } from "@/lib/inteligencia/learning-machine";
 import { OrquestradorClient } from "./orquestrador-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function OrquestradorPage() {
   await requireUser();
-  const jobs = await loadJobs();
+
+  const [jobs, lmReports] = await Promise.all([
+    loadJobs(),
+    loadLMReports(4),
+  ]);
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto" }}>
@@ -29,6 +34,7 @@ export default async function OrquestradorPage() {
             margin: "6px 0 4px",
             color: "var(--text)",
             letterSpacing: -0.4,
+            fontFamily: "var(--font-fraunces, serif)",
           }}
         >
           Orquestrador de jobs
@@ -38,7 +44,7 @@ export default async function OrquestradorPage() {
         </p>
       </header>
 
-      <OrquestradorClient jobs={jobs} />
+      <OrquestradorClient jobs={jobs} lmReports={lmReports} />
     </div>
   );
 }
