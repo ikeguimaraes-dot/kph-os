@@ -63,6 +63,7 @@ export const NAV_CONFIG: NavGroupConfig[] = [
       { label: "Cockpit",           href: "/financeiro",             icon: "Gauge" },
       { label: "Fluxo de Caixa",    href: "/financeiro/fluxo",       icon: "ArrowLeftRight" },
       { label: "DRE", icon: "Sheet", defaultOpen: true, children: [
+        { label: "Gerencial",         icon: "LayoutDashboard", href: "/financeiro/dre/gerencial" },
         { label: "Receita",           icon: "TrendingUp",      href: "/financeiro/dre/receita" },
         { label: "Folha",             icon: "Users",           href: "/financeiro/dre/folha" },
         { label: "CMV",               icon: "ShoppingCart",    href: "/financeiro/dre/cmv" },
