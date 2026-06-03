@@ -16,6 +16,7 @@ const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 // ── Gmail OAuth ─────────────────────────────────────────────────────────────
 
 async function refreshGmailToken(): Promise<string> {
+  console.log("[lorean] Refreshing Gmail token...");
   const resp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -30,57 +31,93 @@ async function refreshGmailToken(): Promise<string> {
   if (!data.access_token) {
     throw new Error(`Gmail token refresh failed: ${JSON.stringify(data)}`);
   }
+  console.log("[lorean] Gmail token OK");
   return data.access_token;
 }
 
 // ── Gmail message fetch ─────────────────────────────────────────────────────
 
 async function fetchLoreanEmailIds(accessToken: string): Promise<string[]> {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const y = yesterday.getFullYear();
-  const m = String(yesterday.getMonth() + 1).padStart(2, "0");
-  const d = String(yesterday.getDate()).padStart(2, "0");
+  // 7 days back for initial testing; production will catch yesterday's emails
+  const since = new Date();
+  since.setDate(since.getDate() - 7);
+  const y = since.getFullYear();
+  const m = String(since.getMonth() + 1).padStart(2, "0");
+  const d = String(since.getDate()).padStart(2, "0");
   const dateStr = `${y}/${m}/${d}`;
 
-  // "lorean" in sender address covers lorean@lorean.com.br and similar
   const query = `from:lorean has:attachment filename:pdf after:${dateStr}`;
+  console.log("[lorean] Gmail query:", query);
 
   const resp = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   const data = await resp.json();
-  return (data.messages ?? []).map((m: { id: string }) => m.id);
+
+  if (data.error) {
+    throw new Error(`Gmail messages.list error: ${JSON.stringify(data.error)}`);
+  }
+
+  const ids = (data.messages ?? []).map((m: { id: string }) => m.id);
+  console.log(`[lorean] Gmail returned ${ids.length} message(s):`, ids);
+  return ids;
 }
 
 interface Attachment {
   filename: string;
   attachmentId: string;
+  mimeType: string;
 }
 
-async function getEmailAttachments(accessToken: string, messageId: string): Promise<Attachment[]> {
+async function getEmailAttachments(
+  accessToken: string,
+  messageId: string,
+): Promise<Attachment[]> {
   const resp = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   const msg = await resp.json();
 
+  if (msg.error) {
+    throw new Error(`Gmail messages.get error for ${messageId}: ${JSON.stringify(msg.error)}`);
+  }
+
   const attachments: Attachment[] = [];
 
   function walk(parts: any[]) {
     for (const part of parts ?? []) {
-      if (
-        part.filename &&
-        part.body?.attachmentId &&
-        part.mimeType === "application/pdf"
-      ) {
-        attachments.push({ filename: part.filename, attachmentId: part.body.attachmentId });
+      if (part.filename && part.body?.attachmentId) {
+        attachments.push({
+          filename: part.filename,
+          attachmentId: part.body.attachmentId,
+          mimeType: part.mimeType ?? "",
+        });
       }
       if (part.parts) walk(part.parts);
     }
   }
   walk(msg.payload?.parts ?? []);
+
+  // Log ALL attachments found regardless of type
+  if (attachments.length === 0) {
+    console.log(`[lorean] email ${messageId}: no attachments with attachmentId found`);
+    // Log raw payload structure for debugging
+    console.log(`[lorean] email ${messageId} payload keys:`, Object.keys(msg.payload ?? {}));
+    const topParts = (msg.payload?.parts ?? []).map((p: any) => ({
+      filename: p.filename,
+      mimeType: p.mimeType,
+      hasAttachmentId: !!p.body?.attachmentId,
+    }));
+    console.log(`[lorean] email ${messageId} top-level parts:`, JSON.stringify(topParts));
+  } else {
+    console.log(
+      `[lorean] email ${messageId}: ${attachments.length} attachment(s):`,
+      attachments.map((a) => `${a.filename} (${a.mimeType})`),
+    );
+  }
+
   return attachments;
 }
 
@@ -94,6 +131,9 @@ async function getAttachmentBase64(
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   const data = await resp.json();
+  if (data.error) {
+    throw new Error(`Gmail attachments.get error: ${JSON.stringify(data.error)}`);
+  }
   // Gmail uses URL-safe base64 — convert to standard base64
   return (data.data as string).replace(/-/g, "+").replace(/_/g, "/");
 }
@@ -166,7 +206,12 @@ Regras:
 - Campos não encontrados: usar null
 - pagamentos: array vazio [] se não houver`;
 
-async function parsePdfWithClaude(pdfBase64: string, tipo: "workday" | "caixa") {
+async function parsePdfWithClaude(
+  pdfBase64: string,
+  tipo: "workday" | "caixa",
+  filename: string,
+) {
+  console.log(`[lorean] Calling Claude for ${filename} (tipo: ${tipo})...`);
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
@@ -185,8 +230,12 @@ async function parsePdfWithClaude(pdfBase64: string, tipo: "workday" | "caixa") 
   });
 
   const text = response.content[0].type === "text" ? response.content[0].text : "";
+  console.log(`[lorean] Claude raw response for ${filename} (first 300 chars):`, text.slice(0, 300));
+
   const clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-  return JSON.parse(clean);
+  const parsed = JSON.parse(clean);
+  console.log(`[lorean] Parsed JSON keys for ${filename}:`, Object.keys(parsed));
+  return parsed;
 }
 
 // ── Database insertion ──────────────────────────────────────────────────────
@@ -202,7 +251,8 @@ async function insertWorkday(
   emailId: string,
   filename: string,
 ) {
-  // Check if a record for this unit+date already exists (indicates split turnos)
+  console.log(`[lorean] insertWorkday: data=${parsed.data} unit=${unitId}`);
+
   const { data: existing } = await supabase
     .from("lorean_workdays")
     .select("id, turno, abertura_at")
@@ -213,13 +263,14 @@ async function insertWorkday(
   let turno: string = "dia_inteiro";
 
   if (existing) {
-    // Both are split turnos — reclassify the existing record
     const turnoExistente = classifyTurno(existing.abertura_at);
+    console.log(`[lorean] Existing workday found (${existing.id}), reclassifying to turno=${turnoExistente}`);
     await supabase
       .from("lorean_workdays")
       .update({ turno: turnoExistente })
       .eq("id", existing.id);
     turno = classifyTurno(parsed.abertura_at);
+    console.log(`[lorean] New workday turno=${turno}`);
   }
 
   const { data: wd, error: wdErr } = await supabase
@@ -252,57 +303,45 @@ async function insertWorkday(
     .single();
 
   if (wdErr) throw new Error(`lorean_workdays upsert: ${wdErr.message}`);
+  console.log(`[lorean] lorean_workdays upserted: id=${wd.id}`);
 
-  const wdId = wd.id;
-
-  // Idempotent child table insert: clear then re-insert
   await Promise.all([
-    supabase.from("lorean_pagamentos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_ambientes").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_turnos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_grupos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_pagamentos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_ambientes").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_turnos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_grupos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wd.id),
   ]);
 
   const inserts: Promise<any>[] = [];
-
   if (parsed.pagamentos?.length) {
-    inserts.push(
-      supabase.from("lorean_pagamentos").insert(
-        parsed.pagamentos.map((p: any) => ({ ...p, workday_id_fk: wdId })),
-      ),
-    );
+    inserts.push(supabase.from("lorean_pagamentos").insert(
+      parsed.pagamentos.map((p: any) => ({ ...p, workday_id_fk: wd.id })),
+    ));
   }
   if (parsed.ambientes?.length) {
-    inserts.push(
-      supabase.from("lorean_ambientes").insert(
-        parsed.ambientes.map((a: any) => ({ ...a, workday_id_fk: wdId })),
-      ),
-    );
+    inserts.push(supabase.from("lorean_ambientes").insert(
+      parsed.ambientes.map((a: any) => ({ ...a, workday_id_fk: wd.id })),
+    ));
   }
   if (parsed.turnos?.length) {
-    inserts.push(
-      supabase.from("lorean_turnos").insert(
-        parsed.turnos.map((t: any) => ({ ...t, workday_id_fk: wdId })),
-      ),
-    );
+    inserts.push(supabase.from("lorean_turnos").insert(
+      parsed.turnos.map((t: any) => ({ ...t, workday_id_fk: wd.id })),
+    ));
   }
   if (parsed.grupos?.length) {
-    inserts.push(
-      supabase.from("lorean_grupos").insert(
-        parsed.grupos.map((g: any) => ({ ...g, workday_id_fk: wdId })),
-      ),
-    );
+    inserts.push(supabase.from("lorean_grupos").insert(
+      parsed.grupos.map((g: any) => ({ ...g, workday_id_fk: wd.id })),
+    ));
   }
   if (parsed.descontos?.length) {
-    inserts.push(
-      supabase.from("lorean_descontos").insert(
-        parsed.descontos.map((d: any) => ({ ...d, workday_id_fk: wdId })),
-      ),
-    );
+    inserts.push(supabase.from("lorean_descontos").insert(
+      parsed.descontos.map((d: any) => ({ ...d, workday_id_fk: wd.id })),
+    ));
   }
-
   await Promise.all(inserts);
+
+  console.log(`[lorean] Child tables inserted for workday ${wd.id}: pagamentos=${parsed.pagamentos?.length ?? 0} ambientes=${parsed.ambientes?.length ?? 0} turnos=${parsed.turnos?.length ?? 0} grupos=${parsed.grupos?.length ?? 0} descontos=${parsed.descontos?.length ?? 0}`);
 
   await supabase.from("lorean_import_log").insert({
     email_id: emailId,
@@ -319,13 +358,18 @@ async function insertCaixa(
   emailId: string,
   filename: string,
 ) {
-  // Try to link to the corresponding workday
+  console.log(`[lorean] insertCaixa: caixa_id=${parsed.caixa_id} operador=${parsed.operador} data=${parsed.data}`);
+
   const { data: wd } = await supabase
     .from("lorean_workdays")
     .select("id")
     .eq("unit_id", unitId)
     .eq("data", parsed.data)
     .maybeSingle();
+
+  if (!wd) {
+    console.log(`[lorean] No workday found for unit=${unitId} data=${parsed.data} — inserting caixa unlinked`);
+  }
 
   const { error: caixaErr } = await supabase.from("lorean_caixas").insert({
     workday_id_fk: wd?.id ?? null,
@@ -339,6 +383,7 @@ async function insertCaixa(
   });
 
   if (caixaErr) throw new Error(`lorean_caixas insert: ${caixaErr.message}`);
+  console.log(`[lorean] lorean_caixas inserted for operador=${parsed.operador}`);
 
   await supabase.from("lorean_import_log").insert({
     email_id: emailId,
@@ -352,12 +397,14 @@ async function insertCaixa(
 
 async function logError(emailId: string, filename: string, err: unknown) {
   const tipo = filename.includes("Movimento") ? "workday" : "caixa";
+  const errMsg = String(err);
+  console.error(`[lorean] ERROR processing ${filename}:`, errMsg);
   await supabase.from("lorean_import_log").insert({
     email_id: emailId,
     filename,
     tipo,
     status: "error",
-    erro: String(err),
+    erro: errMsg,
   });
 }
 
@@ -369,28 +416,33 @@ async function processAttachment(
   attachment: Attachment,
 ): Promise<void> {
   const { filename, attachmentId } = attachment;
+  console.log(`[lorean] Processing attachment: ${filename}`);
 
-  // Extract Lorean unit number from filename (e.g. LOREAN__2031__...)
   const unitMatch = filename.match(/LOREAN__(\d+)__/i);
   const loreanUnitId = unitMatch?.[1];
   const unitMap: Record<string, string> = JSON.parse(
     Deno.env.get("LOREAN_UNIT_MAP") ?? "{}",
   );
   const supabaseUnitId = loreanUnitId ? unitMap[loreanUnitId] : undefined;
+  console.log(`[lorean] Unit: lorean=${loreanUnitId} → supabase=${supabaseUnitId ?? "NOT FOUND"}`);
 
   if (!supabaseUnitId) {
-    throw new Error(`Unidade Lorean desconhecida: ${loreanUnitId ?? "?"} em ${filename}`);
+    throw new Error(`Unidade Lorean desconhecida: ${loreanUnitId ?? "?"} em ${filename}. LOREAN_UNIT_MAP=${Deno.env.get("LOREAN_UNIT_MAP")}`);
   }
 
+  console.log(`[lorean] Downloading PDF attachment ${attachmentId}...`);
   const pdfBase64 = await getAttachmentBase64(accessToken, emailId, attachmentId);
+  console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
+
   const tipo: "workday" | "caixa" = filename.includes("Movimento") ? "workday" : "caixa";
-  const parsed = await parsePdfWithClaude(pdfBase64, tipo);
+  const parsed = await parsePdfWithClaude(pdfBase64, tipo, filename);
 
   if (tipo === "workday") {
     await insertWorkday(parsed, supabaseUnitId, emailId, filename);
   } else {
     await insertCaixa(parsed, supabaseUnitId, emailId, filename);
   }
+  console.log(`[lorean] Done: ${filename}`);
 }
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -400,26 +452,30 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: CORS_HEADERS });
   }
 
+  console.log("[lorean] process-lorean-emails started");
+
   try {
     const accessToken = await refreshGmailToken();
 
-    // IDs already successfully processed (last 3 days to be safe)
+    // Load processed IDs for the last 10 days (wider than 7-day search window)
     const since = new Date();
-    since.setDate(since.getDate() - 3);
+    since.setDate(since.getDate() - 10);
     const { data: logRows } = await supabase
       .from("lorean_import_log")
       .select("email_id")
       .eq("status", "success")
       .gte("processado_em", since.toISOString());
     const processedIds = new Set((logRows ?? []).map((r: any) => r.email_id));
+    console.log(`[lorean] Already-processed email IDs in window: ${processedIds.size}`);
 
     const emailIds = await fetchLoreanEmailIds(accessToken);
-
-    const results = { total_emails: emailIds.length, processed: 0, skipped: 0, errors: 0 };
+    const results = { total_emails: emailIds.length, processed: 0, skipped: 0, errors: 0, detail: [] as any[] };
 
     for (const emailId of emailIds) {
       if (processedIds.has(emailId)) {
+        console.log(`[lorean] Skipping already-processed email: ${emailId}`);
         results.skipped++;
+        results.detail.push({ emailId, status: "skipped" });
         continue;
       }
 
@@ -427,33 +483,51 @@ Deno.serve(async (req) => {
       try {
         attachments = await getEmailAttachments(accessToken, emailId);
       } catch (err) {
-        console.error(`Error fetching attachments for ${emailId}:`, err);
+        console.error(`[lorean] Failed to fetch attachments for ${emailId}:`, err);
         results.errors++;
+        results.detail.push({ emailId, status: "error", error: String(err) });
         continue;
       }
 
+      // Filter: PDF attachments with "lorean" in name
       const pdfAttachments = attachments.filter(
-        (a) => /lorean/i.test(a.filename) && /\.(pdf)$/i.test(a.filename),
+        (a) => /lorean/i.test(a.filename) && /\.pdf$/i.test(a.filename),
       );
+
+      // Log attachments that didn't pass the filter
+      for (const a of attachments) {
+        const isLorean = /lorean/i.test(a.filename);
+        const isPdf = /\.pdf$/i.test(a.filename);
+        if (!isLorean || !isPdf) {
+          console.log(`[lorean] Skipping attachment "${a.filename}" (mimeType=${a.mimeType}) — isLorean=${isLorean} isPdf=${isPdf}`);
+        }
+      }
+
+      if (pdfAttachments.length === 0) {
+        console.log(`[lorean] email ${emailId}: no Lorean PDFs found among ${attachments.length} attachment(s)`);
+        results.detail.push({ emailId, status: "no_pdf", attachments: attachments.map((a) => a.filename) });
+        continue;
+      }
+
+      console.log(`[lorean] email ${emailId}: processing ${pdfAttachments.length} Lorean PDF(s)`);
 
       for (const attachment of pdfAttachments) {
         try {
           await processAttachment(accessToken, emailId, attachment);
           results.processed++;
+          results.detail.push({ emailId, filename: attachment.filename, status: "success" });
         } catch (err) {
-          console.error(`Error processing ${attachment.filename}:`, err);
           await logError(emailId, attachment.filename, err);
           results.errors++;
+          results.detail.push({ emailId, filename: attachment.filename, status: "error", error: String(err) });
         }
       }
     }
 
+    console.log("[lorean] Finished:", results);
     return Response.json(results, { headers: CORS_HEADERS });
   } catch (err) {
-    console.error("process-lorean-emails fatal error:", err);
-    return Response.json({ error: String(err) }, {
-      status: 500,
-      headers: CORS_HEADERS,
-    });
+    console.error("[lorean] Fatal error:", err);
+    return Response.json({ error: String(err) }, { status: 500, headers: CORS_HEADERS });
   }
 });
