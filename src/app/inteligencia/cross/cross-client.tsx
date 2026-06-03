@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { SEV_FG } from "@/lib/tokens";
 
 import {
   Select,
@@ -236,12 +237,12 @@ function BrandKpiCard({
             marginTop: 6,
             fontSize: 11,
             fontWeight: 700,
-            color: deltaGood === true ? "#15803D" : deltaGood === false ? "#B91C1C" : "var(--text-3)",
+            color: deltaGood === true ? SEV_FG.ok : deltaGood === false ? SEV_FG.danger : "var(--text-3)",
             background:
               deltaGood === true
-                ? "rgba(34,197,94,0.12)"
+                ? `${SEV_FG.ok}20`
                 : deltaGood === false
-                ? "rgba(239,68,68,0.12)"
+                ? `${SEV_FG.danger}20`
                 : "var(--surface-2)",
             padding: "2px 6px",
             borderRadius: 99,

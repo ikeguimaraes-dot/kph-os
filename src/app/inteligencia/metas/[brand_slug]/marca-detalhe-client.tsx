@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { Button, buttonVariants } from "@kph/ui/button";
+import { SEV_FG, SEV_BG } from "@/lib/tokens";
 import { Input } from "@kph/ui/input";
 import {
   Select,
@@ -317,11 +318,11 @@ export function MarcaDetalheClient({
               style={{
                 marginTop: 12,
                 padding: "8px 10px",
-                background: "rgba(239,68,68,0.10)",
-                border: "1px solid rgba(239,68,68,0.30)",
+                background: SEV_BG.danger,
+                border: `1px solid ${SEV_FG.danger}50`,
                 borderRadius: 6,
                 fontSize: 11,
-                color: "#B91C1C",
+                color: SEV_FG.danger,
               }}
             >
               {error}
@@ -332,11 +333,11 @@ export function MarcaDetalheClient({
               style={{
                 marginTop: 12,
                 padding: "8px 10px",
-                background: "rgba(34,197,94,0.10)",
-                border: "1px solid rgba(34,197,94,0.30)",
+                background: SEV_BG.ok,
+                border: `1px solid ${SEV_FG.ok}50`,
                 borderRadius: 6,
                 fontSize: 11,
-                color: "#15803D",
+                color: SEV_FG.ok,
               }}
             >
               Metas salvas pra {periodo}.

@@ -43,22 +43,24 @@ const STATUS_LABELS: Record<FeedbackStatus, string> = {
   resolved: "Resolvido",
 };
 
+import { SEV_FG, SEV_BG } from "@/lib/tokens";
+
 const STATUS_BG: Record<FeedbackStatus, string> = {
-  open: "rgba(239,68,68,0.14)",
-  triaged: "rgba(245,158,11,0.14)",
-  resolved: "rgba(34,197,94,0.14)",
+  open: SEV_BG.danger,
+  triaged: SEV_BG.warn,
+  resolved: SEV_BG.ok,
 };
 
 const STATUS_FG: Record<FeedbackStatus, string> = {
-  open: "#B91C1C",
-  triaged: "#A16207",
-  resolved: "#15803D",
+  open: SEV_FG.danger,
+  triaged: SEV_FG.warn,
+  resolved: SEV_FG.ok,
 };
 
 const PRIORITY_FG: Record<FeedbackPriority, string> = {
   low: "var(--text-3)",
-  medium: "#A16207",
-  high: "#B91C1C",
+  medium: SEV_FG.warn,
+  high: SEV_FG.danger,
 };
 
 export function FeedbackClient({
@@ -266,9 +268,9 @@ function FeedbackForm({
           <div
             style={{
               fontSize: 12,
-              color: "#B91C1C",
-              background: "rgba(239,68,68,0.10)",
-              border: "1px solid rgba(239,68,68,0.25)",
+              color: SEV_FG.danger,
+              background: SEV_BG.danger,
+              border: `1px solid ${SEV_FG.danger}40`,
               borderRadius: 6,
               padding: "6px 10px",
               marginBottom: 10,
@@ -282,9 +284,9 @@ function FeedbackForm({
           <div
             style={{
               fontSize: 12,
-              color: "#15803D",
-              background: "rgba(34,197,94,0.10)",
-              border: "1px solid rgba(34,197,94,0.25)",
+              color: SEV_FG.ok,
+              background: SEV_BG.ok,
+              border: `1px solid ${SEV_FG.ok}40`,
               borderRadius: 6,
               padding: "6px 10px",
               marginBottom: 10,
@@ -387,6 +389,7 @@ function FeedbackTable({
       >
         Histórico de feedback ({items.length})
       </div>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -520,6 +523,7 @@ function FeedbackTable({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

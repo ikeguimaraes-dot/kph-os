@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { HosJob, JobStatus, JobType } from "@/lib/inteligencia/orquestrador";
 import type { LMReport } from "@/lib/inteligencia/learning-machine";
+import { SEV_FG, COLORS } from "@/lib/tokens";
 
 // ── Job type config ────────────────────────────────────────────────
 
@@ -33,8 +34,8 @@ const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
   deploy_prod: {
     label: "Deploy produção",
     icon: <Rocket size={14} />,
-    color: "#15803D",
-    bg: "rgba(34,197,94,0.14)",
+    color: COLORS.ouro,
+    bg: "rgba(184,151,90,0.14)",
   },
   code_review: {
     label: "Code review",
@@ -57,13 +58,13 @@ const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
   alert_generated: {
     label: "Alerta gerado",
     icon: <AlertTriangle size={14} />,
-    color: "#B91C1C",
-    bg: "rgba(239,68,68,0.14)",
+    color: SEV_FG.danger,
+    bg: "rgba(196,98,45,0.14)",
   },
   feedback_received: {
     label: "Feedback recebido",
     icon: <MessageSquare size={14} />,
-    color: "#A16207",
+    color: SEV_FG.warn,
     bg: "rgba(245,158,11,0.14)",
   },
   insight_generated: {
@@ -105,12 +106,12 @@ const STATUS_CONFIG: Record<JobStatus, StatusConfig> = {
   success: {
     label: "Sucesso",
     icon: <CheckCircle2 size={12} />,
-    color: "#15803D",
+    color: SEV_FG.ok,
   },
   error: {
     label: "Erro",
     icon: <XCircle size={12} />,
-    color: "#B91C1C",
+    color: SEV_FG.danger,
   },
 };
 
@@ -220,6 +221,7 @@ export function OrquestradorClient({
         >
           Execuções recentes ({jobs.length})
         </div>
+        <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -249,6 +251,7 @@ export function OrquestradorClient({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Learning Machine panel */}
@@ -431,12 +434,12 @@ function LearningMachinePanel({ reports }: { reports: LMReport[] | null }) {
 
       {/* Trigger feedback */}
       {triggerResult && (
-        <div style={{ padding: "8px 18px", background: "rgba(34,197,94,0.08)", borderBottom: "1px solid var(--border)", fontSize: 12, color: "#15803D" }}>
+        <div style={{ padding: "8px 18px", background: `${SEV_FG.ok}14`, borderBottom: "1px solid var(--border)", fontSize: 12, color: SEV_FG.ok }}>
           ✓ {triggerResult}
         </div>
       )}
       {triggerError && (
-        <div style={{ padding: "8px 18px", background: "rgba(239,68,68,0.08)", borderBottom: "1px solid var(--border)", fontSize: 12, color: "#B91C1C" }}>
+        <div style={{ padding: "8px 18px", background: `${SEV_FG.danger}14`, borderBottom: "1px solid var(--border)", fontSize: 12, color: SEV_FG.danger }}>
           ✗ {triggerError}
         </div>
       )}
@@ -521,9 +524,9 @@ function LearningMachinePanel({ reports }: { reports: LMReport[] | null }) {
                           fontWeight: 600,
                           padding: "3px 10px",
                           borderRadius: 99,
-                          background: "rgba(34,197,94,0.12)",
-                          color: "#15803D",
-                          border: "1px solid rgba(34,197,94,0.25)",
+                          background: `${SEV_FG.ok}1F`,
+                          color: SEV_FG.ok,
+                          border: `1px solid ${SEV_FG.ok}40`,
                           cursor: "help",
                         }}
                       >
@@ -554,7 +557,7 @@ function LearningMachinePanel({ reports }: { reports: LMReport[] | null }) {
                           padding: "3px 10px",
                           borderRadius: 99,
                           background: "rgba(245,158,11,0.12)",
-                          color: "#A16207",
+                          color: SEV_FG.warn,
                           border: "1px solid rgba(245,158,11,0.25)",
                           cursor: "help",
                         }}
@@ -590,7 +593,7 @@ function LearningMachinePanel({ reports }: { reports: LMReport[] | null }) {
                           border: "1px solid rgba(239,68,68,0.15)",
                         }}
                       >
-                        <span style={{ fontWeight: 700, color: "#B91C1C", flexShrink: 0 }}>{g.area}</span>
+                        <span style={{ fontWeight: 700, color: SEV_FG.danger, flexShrink: 0 }}>{g.area}</span>
                         <span style={{ color: "var(--text-2)", flex: 1 }}>{g.descricao}</span>
                         <span style={{ color: "var(--text-3)", flexShrink: 0, fontSize: 11 }}>→ {g.agente_sugerido}</span>
                       </div>
@@ -608,10 +611,10 @@ function LearningMachinePanel({ reports }: { reports: LMReport[] | null }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {latest.insights.proximos_passos.map((p, i) => {
                       const prioColor =
-                        p.prioridade === "alta" ? "#B91C1C" :
-                        p.prioridade === "media" ? "#A16207" : "var(--text-3)";
+                        p.prioridade === "alta" ? SEV_FG.danger :
+                        p.prioridade === "media" ? SEV_FG.warn : "var(--text-3)";
                       const prioBg =
-                        p.prioridade === "alta" ? "rgba(239,68,68,0.10)" :
+                        p.prioridade === "alta" ? `${SEV_FG.danger}1A` :
                         p.prioridade === "media" ? "rgba(245,158,11,0.10)" : "var(--surface-2)";
                       return (
                         <div

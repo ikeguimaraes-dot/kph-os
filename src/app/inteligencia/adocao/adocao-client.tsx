@@ -301,6 +301,7 @@ function RecentTable({ visits }: { visits: RecentVisit[] }) {
       >
         Visitas recentes
       </div>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -366,6 +367,7 @@ function RecentTable({ visits }: { visits: RecentVisit[] }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

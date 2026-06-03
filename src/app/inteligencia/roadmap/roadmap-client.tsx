@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { RoadmapItem, RoadmapStatus } from "./actions";
+import { SEV_FG, COLORS } from "@/lib/tokens";
 
 const STATUS_COLS: { status: RoadmapStatus; label: string }[] = [
   { status: "backlog", label: "Backlog" },
@@ -11,8 +12,8 @@ const STATUS_COLS: { status: RoadmapStatus; label: string }[] = [
 
 const STATUS_ACCENT: Record<RoadmapStatus, string> = {
   backlog: "var(--border)",
-  in_progress: "#D4A574",
-  done: "#22C55E",
+  in_progress: COLORS.ouro,
+  done: SEV_FG.ok,
 };
 
 const SPRINT_COLORS = ["#6B8FA3", "#D4A574", "#A07CC5", "#4A7C59"];
@@ -27,7 +28,7 @@ export function RoadmapClient({ items }: { items: RoadmapItem[] | null }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(3, 1fr)",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
         gap: 16,
         alignItems: "start",
       }}
@@ -180,7 +181,7 @@ function RoadmapCard({ item }: { item: RoadmapItem }) {
               padding: "2px 7px",
               borderRadius: 99,
               background: "rgba(212,165,116,0.14)",
-              color: "#A16207",
+              color: SEV_FG.warn,
               border: "1px solid rgba(212,165,116,0.30)",
             }}
           >

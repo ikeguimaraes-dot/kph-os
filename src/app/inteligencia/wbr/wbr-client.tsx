@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowLeft,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -39,17 +37,7 @@ import {
 } from "@/lib/inteligencia/wbr-shared";
 import { calcIntelligenceScore } from "@/lib/inteligencia/intelligence-score";
 import type { WbrInsight } from "./actions";
-
-const SEV_BG: Record<Severity, string> = {
-  ok: "rgba(34,197,94,0.16)",
-  warn: "rgba(245,158,11,0.16)",
-  danger: "rgba(239,68,68,0.16)",
-};
-const SEV_FG: Record<Severity, string> = {
-  ok: "#15803D",
-  warn: "#A16207",
-  danger: "#B91C1C",
-};
+import { SEV_FG, SEV_BG } from "@/lib/tokens";
 
 function formatDateBR(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -94,24 +82,9 @@ export function WbrClient({
   const intelligenceScore = calcIntelligenceScore(payload);
 
   return (
-    <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-      <Link
-        href="/inteligencia"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 12,
-          color: "var(--text-3)",
-          textDecoration: "none",
-          marginBottom: 16,
-        }}
-      >
-        <ArrowLeft size={14} />
-        Inteligência
-      </Link>
-
-      <header
+    <div>
+      {/* Week navigator + period label */}
+      <div
         style={{
           display: "flex",
           alignItems: "center",
@@ -121,37 +94,11 @@ export function WbrClient({
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: 1.6,
-              textTransform: "uppercase",
-              color: "var(--text-3)",
-            }}
-          >
-            Inteligência · WBR
-          </div>
-          <h1
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              margin: "6px 0 4px",
-              color: "var(--text)",
-              letterSpacing: -0.4,
-              fontFamily: "var(--font-fraunces, serif)",
-            }}
-          >
-            Weekly Business Review
-          </h1>
-          <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
-            Semana <strong style={{ color: "var(--text-2)" }}>{periodLabel}</strong>
-            {" · "}referência {payload.monthCompetencia.slice(0, 7)}
-          </p>
-        </div>
+        <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+          Semana <strong style={{ color: "var(--text-2)" }}>{periodLabel}</strong>
+          {" · "}referência {payload.monthCompetencia.slice(0, 7)}
+        </p>
 
-        {/* Week navigator */}
         <div
           style={{
             display: "flex",
@@ -200,7 +147,7 @@ export function WbrClient({
             Hoje
           </button>
         </div>
-      </header>
+      </div>
 
       {/* KPH Intelligence Score */}
       <IntelligenceScoreCard score={intelligenceScore} />
@@ -298,11 +245,11 @@ function KpiCard({
 }) {
   const fg =
     tone === "danger"
-      ? "#B91C1C"
+      ? SEV_FG.danger
       : tone === "warn"
-      ? "#A16207"
+      ? SEV_FG.warn
       : tone === "ok"
-      ? "#15803D"
+      ? SEV_FG.ok
       : "var(--text)";
   return (
     <div
@@ -516,7 +463,7 @@ function BrandCard({ kpi }: { kpi: WbrBrandKpi }) {
             border: "1px solid rgba(245,158,11,0.25)",
             borderRadius: 8,
             fontSize: 11,
-            color: "#A16207",
+            color: SEV_FG.warn,
             display: "flex",
             alignItems: "center",
             gap: 6,
@@ -865,7 +812,7 @@ function IntelligenceScoreCard({
           <div
             style={{
               fontSize: 12,
-              color: score.delta >= 0 ? "#15803D" : "#B91C1C",
+              color: score.delta >= 0 ? SEV_FG.ok : SEV_FG.danger,
               fontWeight: 600,
             }}
           >
@@ -1111,7 +1058,7 @@ function Metric({
         <div
           style={{
             fontSize: 10,
-            color: "#A16207",
+            color: SEV_FG.warn,
             marginTop: 3,
             fontStyle: "italic",
           }}
