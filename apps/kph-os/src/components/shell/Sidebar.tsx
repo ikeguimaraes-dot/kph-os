@@ -477,18 +477,158 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                 if (it.children) {
                   const itemOpen = openItems[it.label] ?? false;
                   const childActive = it.children.some((c) => c.href === activeHref);
-                  const selfActive = it.href === activeHref;
+                  const selfActive = it.href !== undefined && it.href === activeHref;
                   const highlighted = selfActive || childActive;
+
+                  const chevron = (
+                    <ChevronRight
+                      size={12}
+                      style={{
+                        color: "var(--text-3)",
+                        transform: itemOpen ? "rotate(90deg)" : "none",
+                        transition: hydrated ? "transform var(--t)" : "none",
+                      }}
+                    />
+                  );
+
+                  const childList = itemOpen
+                    ? it.children.map((child) => {
+                        if (!child.href) return null;
+                        const ChildIcon = child.icon;
+                        const childIsActive = child.href === activeHref;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            style={{
+                              position: "relative",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "7px 12px 7px 28px",
+                              borderRadius: 8,
+                              textDecoration: "none",
+                              color: childIsActive ? "var(--text)" : "var(--text-2)",
+                              background: childIsActive ? "var(--surface-2)" : "transparent",
+                              fontSize: 12,
+                              fontWeight: childIsActive ? 600 : 400,
+                              transition: "all var(--t)",
+                            }}
+                          >
+                            {childIsActive && (
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  left: -12,
+                                  top: 4,
+                                  bottom: 4,
+                                  width: 3,
+                                  background: "var(--brand)",
+                                  borderRadius: "0 4px 4px 0",
+                                }}
+                              />
+                            )}
+                            <ChildIcon
+                              size={14}
+                              strokeWidth={childIsActive ? 2.2 : 1.8}
+                              style={{ color: childIsActive ? "var(--brand)" : "currentColor" }}
+                            />
+                            <span style={{ flex: 1 }}>{child.label}</span>
+                          </Link>
+                        );
+                      })
+                    : null;
+
+                  // Híbrido: texto/ícone é link, seta é toggle independente
+                  if (it.href) {
+                    return (
+                      <div key={it.label}>
+                        <div
+                          style={{
+                            position: "relative",
+                            display: "flex",
+                            alignItems: "center",
+                            borderRadius: 8,
+                            background: highlighted ? "var(--surface-2)" : "transparent",
+                            transition: "background var(--t)",
+                          }}
+                        >
+                          {highlighted && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                left: -12,
+                                top: 6,
+                                bottom: 6,
+                                width: 3,
+                                background: "var(--brand)",
+                                borderRadius: "0 4px 4px 0",
+                              }}
+                            />
+                          )}
+                          <Link
+                            href={it.href}
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 12,
+                              padding: "9px 0 9px 12px",
+                              textDecoration: "none",
+                              color: selfActive ? "var(--text)" : "var(--text-2)",
+                              fontSize: 13,
+                              fontWeight: highlighted ? 600 : 500,
+                            }}
+                          >
+                            <Icon
+                              size={16}
+                              strokeWidth={highlighted ? 2.2 : 1.8}
+                              style={{ color: highlighted ? "var(--brand)" : "currentColor" }}
+                            />
+                            <span>{it.label}</span>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(it.label)}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              padding: "9px 10px",
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {chevron}
+                          </button>
+                        </div>
+                        {childList}
+                      </div>
+                    );
+                  }
+
+                  // Toggle puro: item sem href próprio
                   return (
                     <div key={it.label}>
-                      <div
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(it.label)}
                         style={{
                           position: "relative",
                           display: "flex",
                           alignItems: "center",
+                          gap: 12,
+                          padding: "9px 12px",
                           borderRadius: 8,
+                          width: "100%",
                           background: highlighted ? "var(--surface-2)" : "transparent",
-                          transition: "background var(--t)",
+                          border: "none",
+                          color: highlighted ? "var(--text)" : "var(--text-2)",
+                          fontSize: 13,
+                          fontWeight: highlighted ? 600 : 500,
+                          cursor: "pointer",
+                          textAlign: "left",
+                          transition: "all var(--t)",
                         }}
                       >
                         {highlighted && (
@@ -504,94 +644,15 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                             }}
                           />
                         )}
-                        <Link
-                          href={it.href!}
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            padding: "9px 0 9px 12px",
-                            textDecoration: "none",
-                            color: selfActive ? "var(--text)" : "var(--text-2)",
-                            fontSize: 13,
-                            fontWeight: selfActive ? 600 : (childActive ? 600 : 500),
-                          }}
-                        >
-                          <Icon
-                            size={16}
-                            strokeWidth={highlighted ? 2.2 : 1.8}
-                            style={{ color: highlighted ? "var(--brand)" : "currentColor" }}
-                          />
-                          <span>{it.label}</span>
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => toggleItem(it.label)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            padding: "9px 10px",
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                            color: "var(--text-3)",
-                          }}
-                        >
-                          <ChevronRight
-                            size={12}
-                            style={{
-                              transform: itemOpen ? "rotate(90deg)" : "none",
-                              transition: hydrated ? "transform var(--t)" : "none",
-                            }}
-                          />
-                        </button>
-                      </div>
-                      {itemOpen &&
-                        it.children.map((child) => {
-                          const ChildIcon = child.icon;
-                          const childIsActive = child.href === activeHref;
-                          return (
-                            <Link
-                              key={child.href}
-                              href={child.href!}
-                              style={{
-                                position: "relative",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                padding: "7px 12px 7px 28px",
-                                borderRadius: 8,
-                                textDecoration: "none",
-                                color: childIsActive ? "var(--text)" : "var(--text-2)",
-                                background: childIsActive ? "var(--surface-2)" : "transparent",
-                                fontSize: 12,
-                                fontWeight: childIsActive ? 600 : 400,
-                                transition: "all var(--t)",
-                              }}
-                            >
-                              {childIsActive && (
-                                <span
-                                  style={{
-                                    position: "absolute",
-                                    left: -12,
-                                    top: 4,
-                                    bottom: 4,
-                                    width: 3,
-                                    background: "var(--brand)",
-                                    borderRadius: "0 4px 4px 0",
-                                  }}
-                                />
-                              )}
-                              <ChildIcon
-                                size={14}
-                                strokeWidth={childIsActive ? 2.2 : 1.8}
-                                style={{ color: childIsActive ? "var(--brand)" : "currentColor" }}
-                              />
-                              <span style={{ flex: 1 }}>{child.label}</span>
-                            </Link>
-                          );
-                        })}
+                        <Icon
+                          size={16}
+                          strokeWidth={highlighted ? 2.2 : 1.8}
+                          style={{ color: highlighted ? "var(--brand)" : "currentColor" }}
+                        />
+                        <span style={{ flex: 1 }}>{it.label}</span>
+                        {chevron}
+                      </button>
+                      {childList}
                     </div>
                   );
                 }
