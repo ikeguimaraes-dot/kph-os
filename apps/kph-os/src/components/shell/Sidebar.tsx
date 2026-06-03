@@ -477,30 +477,21 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                 if (it.children) {
                   const itemOpen = openItems[it.label] ?? false;
                   const childActive = it.children.some((c) => c.href === activeHref);
+                  const selfActive = it.href === activeHref;
+                  const highlighted = selfActive || childActive;
                   return (
                     <div key={it.label}>
-                      <button
-                        type="button"
-                        onClick={() => toggleItem(it.label)}
+                      <div
                         style={{
                           position: "relative",
                           display: "flex",
                           alignItems: "center",
-                          gap: 12,
-                          padding: "9px 12px",
                           borderRadius: 8,
-                          width: "100%",
-                          background: childActive && !itemOpen ? "var(--surface-2)" : "transparent",
-                          border: "none",
-                          color: childActive ? "var(--text)" : "var(--text-2)",
-                          fontSize: 13,
-                          fontWeight: childActive ? 600 : 500,
-                          cursor: "pointer",
-                          textAlign: "left",
-                          transition: "all var(--t)",
+                          background: highlighted ? "var(--surface-2)" : "transparent",
+                          transition: "background var(--t)",
                         }}
                       >
-                        {childActive && !itemOpen && (
+                        {highlighted && (
                           <span
                             style={{
                               position: "absolute",
@@ -513,21 +504,49 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                             }}
                           />
                         )}
-                        <Icon
-                          size={16}
-                          strokeWidth={childActive ? 2.2 : 1.8}
-                          style={{ color: childActive ? "var(--brand)" : "currentColor" }}
-                        />
-                        <span style={{ flex: 1 }}>{it.label}</span>
-                        <ChevronRight
-                          size={12}
+                        <Link
+                          href={it.href!}
                           style={{
-                            color: "var(--text-3)",
-                            transform: itemOpen ? "rotate(90deg)" : "none",
-                            transition: hydrated ? "transform var(--t)" : "none",
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "9px 0 9px 12px",
+                            textDecoration: "none",
+                            color: selfActive ? "var(--text)" : "var(--text-2)",
+                            fontSize: 13,
+                            fontWeight: selfActive ? 600 : (childActive ? 600 : 500),
                           }}
-                        />
-                      </button>
+                        >
+                          <Icon
+                            size={16}
+                            strokeWidth={highlighted ? 2.2 : 1.8}
+                            style={{ color: highlighted ? "var(--brand)" : "currentColor" }}
+                          />
+                          <span>{it.label}</span>
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => toggleItem(it.label)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "9px 10px",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--text-3)",
+                          }}
+                        >
+                          <ChevronRight
+                            size={12}
+                            style={{
+                              transform: itemOpen ? "rotate(90deg)" : "none",
+                              transition: hydrated ? "transform var(--t)" : "none",
+                            }}
+                          />
+                        </button>
+                      </div>
                       {itemOpen &&
                         it.children.map((child) => {
                           const ChildIcon = child.icon;

@@ -49,7 +49,7 @@ const NAV_DATA = {
       items: [
         { label: "Cockpit",             href: "/financeiro",             icon: "Gauge" },
         { label: "Fluxo de Caixa",      href: "/financeiro/fluxo",       icon: "ArrowLeftRight" },
-        { label: "DRE", icon: "Sheet", children: [
+        { label: "DRE", href: "/financeiro/dre", icon: "Sheet", children: [
           { label: "Receita",           icon: "TrendingUp",      href: "/financeiro/dre/receita" },
           { label: "Folha",             icon: "Users",           href: "/financeiro/dre/folha" },
           { label: "CMV",               icon: "ShoppingCart",    href: "/financeiro/dre/cmv" },
