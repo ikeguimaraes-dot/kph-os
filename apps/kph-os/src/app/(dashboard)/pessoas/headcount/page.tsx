@@ -2,6 +2,32 @@ import { requireUser } from "@kph/auth/server";
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
 import { InsightPanel } from "@/components/intelligence/InsightPanel";
 
+type PessoasInsight = {
+  id: string;
+  insight_text: string;
+  semana: string;
+  dados_referencia: { score?: number; breakdown?: Record<string, number | null> } | null;
+  gerado_por: string;
+  created_at: string;
+};
+
+async function getLatestPessoasInsight(): Promise<PessoasInsight | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return null;
+    const { data } = await (supabase as any)
+      .from("kph_insights")
+      .select("id, insight_text, semana, dados_referencia, gerado_por, created_at")
+      .eq("modulo", "pessoas")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return (data as PessoasInsight) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export const dynamic = "force-dynamic";
 
 type HeadcountRow = {
@@ -31,7 +57,7 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL",
 
 export default async function HeadcountPage() {
   await requireUser();
-  const rows = await getHeadcount();
+  const [rows, agentInsight] = await Promise.all([getHeadcount(), getLatestPessoasInsight()]);
 
   const totalAtivo = rows.reduce((s, r) => s + (r.headcount_ativo ?? 0), 0);
   const totalFolha = rows.reduce((s, r) => s + (r.folha_bruta ?? 0), 0);
@@ -121,29 +147,77 @@ export default async function HeadcountPage() {
         </div>
       )}
 
-      <InsightPanel
-        module="pessoas"
-        context={{
-          headcount_total: totalAtivo,
-          folha_bruta_total: totalFolha,
-          admissoes_mes: totalAdmissoes,
-          demissoes_mes: totalDemissoes,
-          turnover_pct: turnover != null ? Number(turnover) : null,
-          por_marca: rows.map((r) => ({
-            marca: r.brand_name,
-            headcount: r.headcount_ativo,
-            admissoes: r.admissoes_mes,
-            demissoes: r.demissoes_mes,
-          })),
-        }}
-        title="Insight de Pessoas"
-      />
+      {agentInsight ? (
+        <AgentInsightBanner insight={agentInsight} />
+      ) : (
+        <InsightPanel
+          module="pessoas"
+          context={{
+            headcount_total: totalAtivo,
+            folha_bruta_total: totalFolha,
+            admissoes_mes: totalAdmissoes,
+            demissoes_mes: totalDemissoes,
+            turnover_pct: turnover != null ? Number(turnover) : null,
+            por_marca: rows.map((r) => ({
+              marca: r.brand_name,
+              headcount: r.headcount_ativo,
+              admissoes: r.admissoes_mes,
+              demissoes: r.demissoes_mes,
+            })),
+          }}
+          title="Insight de Pessoas"
+        />
+      )}
+    </div>
+  );
+}
+
+function AgentInsightBanner({ insight }: { insight: PessoasInsight }) {
+  const score = insight.dados_referencia?.score;
+  const scoreColor = score == null ? "var(--text-3)" : score >= 80 ? "#B8975A" : score >= 60 ? "#A16207" : "#C4622D";
+  const semanaFormatted = insight.semana
+    ? new Date(insight.semana + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+    : null;
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderLeft: "3px solid #B8975A",
+        borderRadius: 10,
+        padding: "18px 22px",
+        marginTop: 4,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "var(--text-3)" }}>
+            Insight de Pessoas
+          </span>
+          <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 99, background: "rgba(184,151,90,0.14)", color: "#B8975A", fontWeight: 700 }}>
+            Agente IA
+          </span>
+          {semanaFormatted && (
+            <span style={{ fontSize: 10, color: "var(--text-3)" }}>semana de {semanaFormatted}</span>
+          )}
+        </div>
+        {score != null && (
+          <div style={{ textAlign: "right" }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: scoreColor, letterSpacing: -0.4 }}>{score}</span>
+            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 3 }}>/100</span>
+          </div>
+        )}
+      </div>
+      <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, margin: 0 }}>
+        {insight.insight_text}
+      </p>
     </div>
   );
 }
 
 function KpiCard({ label, value, ok, alert }: { label: string; value: string; ok?: boolean; alert?: boolean }) {
-  const color = alert ? "#EF4444" : ok ? "#22C55E" : "var(--text)";
+  const color = alert ? "#C4622D" : ok ? "#B8975A" : "var(--text)";
   return (
     <div
       style={{

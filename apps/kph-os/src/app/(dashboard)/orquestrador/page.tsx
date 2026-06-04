@@ -3,6 +3,36 @@ import { loadLMReports, generateLearningMachineReport } from "@/lib/orquestrador
 import { handleApproval } from "@/lib/orquestrador/approve-handler";
 import { createServiceClient } from "@kph/db/supabase/server";
 import type { LMReport } from "@/lib/orquestrador/learning-machine";
+
+type ModuleScore = { modulo: string; score: number | null; insight_text: string | null; semana: string | null };
+
+async function loadModuleScores(): Promise<ModuleScore[]> {
+  try {
+    const supabase = createServiceClient();
+    if (!supabase) return [];
+    // Latest insight per module — subquery via ordering and distinct
+    const modules = ["pessoas"];
+    const results: ModuleScore[] = [];
+    for (const mod of modules) {
+      const { data } = await (supabase as any)
+        .from("kph_insights")
+        .select("modulo, insight_text, semana, dados_referencia")
+        .eq("modulo", mod)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      results.push({
+        modulo: mod,
+        score: (data as any)?.dados_referencia?.score ?? null,
+        insight_text: (data as any)?.insight_text ?? null,
+        semana: (data as any)?.semana ?? null,
+      });
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
 import { ApproveJobButton } from "./ApproveJobButton";
 import { InsightPanel } from "@/components/intelligence/InsightPanel";
 import Link from "next/link";
@@ -56,10 +86,11 @@ async function loadPendingJobs(): Promise<OrquestradorJob[]> {
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default async function OrchestratorPage() {
-  const [runs, lmReports, pendingJobs] = await Promise.all([
+  const [runs, lmReports, pendingJobs, moduleScores] = await Promise.all([
     listOrchestratorRuns(),
     loadLMReports(1),
     loadPendingJobs(),
+    loadModuleScores(),
   ]);
 
   const latestLM = lmReports?.[0] ?? null;
@@ -81,6 +112,46 @@ export default async function OrchestratorPage() {
 
       {/* Learning Machine Panel — always visible */}
       <LearningMachinePanel report={latestLM} triggerAction={triggerLearningMachine} />
+
+      {/* Scores por Módulo — agentes dedicados */}
+      {moduleScores.length > 0 && (
+        <div className="rounded-md border bg-card text-card-foreground shadow-sm p-6">
+          <div className="pb-3 mb-4 border-b">
+            <h3 className="text-base font-semibold leading-none tracking-tight">Scores por Módulo</h3>
+            <p className="text-xs text-muted-foreground mt-1">Calculados pelos agentes IA dedicados — atualização diária 06h BRT</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {moduleScores.map((m) => {
+              const scoreColor =
+                m.score == null ? "text-muted-foreground" :
+                m.score >= 80 ? "text-yellow-600 dark:text-yellow-400" :
+                m.score >= 60 ? "text-amber-600 dark:text-amber-400" :
+                "text-red-600 dark:text-red-400";
+              const moduloLabel: Record<string, string> = { pessoas: "Pessoas" };
+              return (
+                <div key={m.modulo} className="rounded-md bg-muted/40 p-3 border border-border/60">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {moduloLabel[m.modulo] ?? m.modulo}
+                  </div>
+                  <div className={`text-3xl font-bold tabular-nums ${scoreColor}`}>
+                    {m.score ?? "—"}
+                  </div>
+                  {m.semana && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      semana de {new Date(m.semana + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                    </div>
+                  )}
+                  {m.insight_text && (
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
+                      {m.insight_text}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Contextual AI Insight Panel */}
       <InsightPanel
