@@ -10,22 +10,30 @@ async function loadModuleScores(): Promise<ModuleScore[]> {
   try {
     const supabase = createServiceClient();
     if (!supabase) return [];
-    // Latest insight per module — subquery via ordering and distinct
     const modules = ["pessoas"];
     const results: ModuleScore[] = [];
     for (const mod of modules) {
-      const { data } = await (supabase as any)
+      // Score vem de kph_intelligence_scores (coluna dedicada, não JSONB aninhado)
+      const { data: scoreRow } = await (supabase as any)
+        .from("kph_intelligence_scores")
+        .select("modulo, score, semana")
+        .eq("modulo", mod)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      // Insight textual vem de kph_insights
+      const { data: insightRow } = await (supabase as any)
         .from("kph_insights")
-        .select("modulo, insight_text, semana, dados_referencia")
+        .select("insight_text")
         .eq("modulo", mod)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       results.push({
         modulo: mod,
-        score: (data as any)?.dados_referencia?.score ?? null,
-        insight_text: (data as any)?.insight_text ?? null,
-        semana: (data as any)?.semana ?? null,
+        score: (scoreRow as any)?.score ?? null,
+        insight_text: (insightRow as any)?.insight_text ?? null,
+        semana: (scoreRow as any)?.semana ?? null,
       });
     }
     return results;
