@@ -210,35 +210,10 @@ Regras:
 
 const VENDA_PROMPT = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
 
+Este relatório contém detalhamento de vendas por grupo de produto, desconto, cancelamento, horário e garçom. NÃO contém receita bruta, pagamentos, ambientes ou turnos — não invente esses campos.
+
 Formato esperado:
 {
-  "workday_id": number,
-  "data": "YYYY-MM-DD",
-  "abertura_at": "YYYY-MM-DD HH:MM:SS",
-  "fechamento_at": "YYYY-MM-DD HH:MM:SS",
-  "receita_bruta": number,
-  "desconto": number,
-  "gorjeta": number,
-  "receita_liquida": number,
-  "custo": number,
-  "cmv_pct": number,
-  "lucro": number,
-  "clientes": number,
-  "ticket_medio": number,
-  "permanencia_media": "HH:MM:SS",
-  "previsto": number,
-  "pagamentos": [
-    { "forma": string, "valor_fechado": number, "valor_recebido": number, "diferenca": number }
-  ],
-  "ambientes": [
-    { "ambiente": string, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
-  ],
-  "turnos": [
-    { "turno": string, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
-  ],
-  "horarios": [
-    { "hora": number, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
-  ],
   "grupos": [
     { "grupo": string, "pct_bruto": number, "bruto": number, "desconto": number, "gorjeta": number, "consumo": number }
   ],
@@ -248,20 +223,19 @@ Formato esperado:
   "cancelamentos": [
     { "motivo": string, "qtd": number, "consumo": number }
   ],
+  "horarios": [
+    { "hora": number, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
+  ],
   "usuarios": [
     { "usuario": string, "qtd": number, "gorjeta": number, "produto": number, "consumo": number }
   ]
 }
 
 Regras:
-- IMPORTANTE: As datas estão no formato DD.MM.YY (dia.mês.ano brasileiro). Ex: 02.06.26 = 2 de junho de 2026 = 2026-06-02. Converter para ISO 8601: YYYY-MM-DD.
-- cmv_pct: valor decimal (ex: 0.27 para 27%)
 - pct_bruto: valor decimal (ex: 0.17 para 17%)
-- permanencia_media: formato "HH:MM:SS"
 - horarios.hora: número inteiro da hora (12, 13, 14 ... 23)
-- ambientes: inclui tanto "Por Ambiente" (Salão, Rooftop) quanto "Por Módulo" (Mesa, Comanda) — use o campo "ambiente" para o nome
 - Campos não encontrados: usar null
-- Arrays vazios se a seção não existir: []`;
+- Arrays vazios se a seção não existir no PDF: []`;
 
 async function parsePdfWithClaude(
   pdfBase64: string,
@@ -481,90 +455,51 @@ async function insertVenda(
   emailId: string,
   filename: string,
 ) {
-  console.log(`[lorean] insertVenda: data=${parsed.data} unit=${unitId}`);
+  // Extract lorean workday_id from filename: "Venda (1913 [04.06.26])" → 1913
+  const wdMatch = filename.match(/\((\d+)/);
+  const loreanWorkdayId = wdMatch ? parseInt(wdMatch[1], 10) : null;
+  console.log(`[lorean] insertVenda: lorean workday_id=${loreanWorkdayId} unit=${unitId}`);
 
-  const { data: existing } = await supabase
-    .from("lorean_workdays")
-    .select("id, turno, abertura_at")
-    .eq("unit_id", unitId)
-    .eq("data", parsed.data)
-    .maybeSingle();
-
-  let turno: string = "dia_inteiro";
-  if (existing) {
-    const turnoExistente = classifyTurno(existing.abertura_at);
-    await supabase.from("lorean_workdays").update({ turno: turnoExistente }).eq("id", existing.id);
-    turno = classifyTurno(parsed.abertura_at);
-    console.log(`[lorean] Venda reclassificando workday existente para turno=${turnoExistente}, novo=${turno}`);
+  if (!loreanWorkdayId) {
+    throw new Error(`Cannot extract workday_id from Venda filename: "${filename}"`);
   }
 
-  const { data: wd, error: wdErr } = await supabase
+  // Look up workday already created by Movimento — do NOT upsert lorean_workdays
+  const { data: wd } = await supabase
     .from("lorean_workdays")
-    .upsert(
-      {
-        unit_id: unitId,
-        data: parsed.data,
-        workday_id: parsed.workday_id,
-        turno,
-        abertura_at: parsed.abertura_at,
-        fechamento_at: parsed.fechamento_at,
-        receita_bruta: parsed.receita_bruta,
-        desconto: parsed.desconto,
-        gorjeta: parsed.gorjeta,
-        receita_liquida: parsed.receita_liquida,
-        custo: parsed.custo,
-        cmv_pct: parsed.cmv_pct,
-        lucro: parsed.lucro,
-        clientes: parsed.clientes,
-        ticket_medio: parsed.ticket_medio,
-        permanencia_media: parsed.permanencia_media,
-        previsto: parsed.previsto,
-      },
-      { onConflict: "unit_id,data,turno" },
-    )
-    .select()
-    .single();
+    .select("id, data")
+    .eq("unit_id", unitId)
+    .eq("workday_id", loreanWorkdayId)
+    .maybeSingle();
 
-  if (wdErr) throw new Error(`lorean_workdays upsert (venda): ${wdErr.message}`);
-  console.log(`[lorean] lorean_workdays upserted via Venda: id=${wd.id}`);
+  if (!wd) {
+    throw new Error(`Workday not found for unit=${unitId} workday_id=${loreanWorkdayId} — process Movimento first`);
+  }
 
-  const wdId = wd.id;
+  console.log(`[lorean] Found workday: id=${wd.id} data=${wd.data}`);
 
-  // Idempotent: clear all child tables before re-inserting
+  // Idempotent: clear Venda-specific child tables before re-inserting
   await Promise.all([
-    supabase.from("lorean_pagamentos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_ambientes").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_turnos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_grupos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_horarios").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_usuarios").delete().eq("workday_id_fk", wdId),
-    supabase.from("lorean_cancelamentos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_grupos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_cancelamentos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_horarios").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_usuarios").delete().eq("workday_id_fk", wd.id),
   ]);
 
-  // Log counts BEFORE inserting — shows what Claude returned per field
-  console.log("[venda] pagamentos:", parsed.pagamentos?.length ?? 0);
-  console.log("[venda] ambientes:", parsed.ambientes?.length ?? 0);
-  console.log("[venda] turnos:", parsed.turnos?.length ?? 0);
-  console.log("[venda] horarios:", parsed.horarios?.length ?? 0);
   console.log("[venda] grupos:", parsed.grupos?.length ?? 0);
   console.log("[venda] descontos:", parsed.descontos?.length ?? 0);
   console.log("[venda] cancelamentos:", parsed.cancelamentos?.length ?? 0);
+  console.log("[venda] horarios:", parsed.horarios?.length ?? 0);
   console.log("[venda] usuarios:", parsed.usuarios?.length ?? 0);
-  // Log top-level keys so we can spot unexpected field names from Claude
   console.log("[venda] JSON keys from Claude:", Object.keys(parsed).join(", "));
 
   const inserts: Promise<any>[] = [];
-  const tag = (arr: any[], key: string) => (arr ?? []).map((r: any) => ({ ...r, workday_id_fk: wdId, [key]: r[key] }));
-
-  if (parsed.pagamentos?.length)    inserts.push(supabase.from("lorean_pagamentos").insert(tag(parsed.pagamentos, "forma")));
-  if (parsed.ambientes?.length)     inserts.push(supabase.from("lorean_ambientes").insert(tag(parsed.ambientes, "ambiente")));
-  if (parsed.turnos?.length)        inserts.push(supabase.from("lorean_turnos").insert(tag(parsed.turnos, "turno")));
-  if (parsed.grupos?.length)        inserts.push(supabase.from("lorean_grupos").insert(tag(parsed.grupos, "grupo")));
-  if (parsed.descontos?.length)     inserts.push(supabase.from("lorean_descontos").insert(tag(parsed.descontos, "motivo")));
-  if (parsed.horarios?.length)      inserts.push(supabase.from("lorean_horarios").insert(tag(parsed.horarios, "hora")));
-  if (parsed.usuarios?.length)      inserts.push(supabase.from("lorean_usuarios").insert(tag(parsed.usuarios, "usuario")));
-  if (parsed.cancelamentos?.length) inserts.push(supabase.from("lorean_cancelamentos").insert(tag(parsed.cancelamentos, "motivo")));
+  if (parsed.grupos?.length)        inserts.push(supabase.from("lorean_grupos").insert(parsed.grupos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
+  if (parsed.descontos?.length)     inserts.push(supabase.from("lorean_descontos").insert(parsed.descontos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
+  if (parsed.cancelamentos?.length) inserts.push(supabase.from("lorean_cancelamentos").insert(parsed.cancelamentos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
+  if (parsed.horarios?.length)      inserts.push(supabase.from("lorean_horarios").insert(parsed.horarios.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
+  if (parsed.usuarios?.length)      inserts.push(supabase.from("lorean_usuarios").insert(parsed.usuarios.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
 
   await Promise.all(inserts);
   console.log("[venda] inserts dispatched");
@@ -573,7 +508,7 @@ async function insertVenda(
     email_id: emailId,
     filename,
     tipo: "venda",
-    data_referente: parsed.data,
+    data_referente: wd.data,
     status: "success",
   });
 }
