@@ -585,14 +585,17 @@ async function processAttachment(
   console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
 
   if (tipo === "venda") {
-    // Split into 2 parallel calls — grupos/descontos/cancelamentos + horarios/usuarios
-    console.log(`[lorean] Venda: dispatching 2 parallel Claude calls`);
+    console.log("[venda] starting 2-part extraction");
     const [part1, part2] = await Promise.all([
       parsePdfWithClaude(pdfBase64, VENDA_PROMPT_1, filename, "venda-part1"),
       parsePdfWithClaude(pdfBase64, VENDA_PROMPT_2, filename, "venda-part2"),
     ]);
-    const parsed = { ...part1, ...part2 };
-    await insertVenda(parsed, supabaseUnitId, emailId, filename);
+    const result = { ...part1, ...part2 };
+    console.log("[venda] merged horarios:", result.horarios?.length ?? 0);
+    console.log("[venda] merged usuarios:", result.usuarios?.length ?? 0);
+    console.log("[venda] merged grupos:", result.grupos?.length ?? 0);
+    console.log("[venda] merged keys:", Object.keys(result).join(", "));
+    await insertVenda(result, supabaseUnitId, emailId, filename);
   } else {
     const parsed = await parsePdfWithClaude(
       pdfBase64,
