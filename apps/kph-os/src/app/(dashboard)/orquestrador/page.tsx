@@ -20,46 +20,66 @@ function moduleLabel(slug: string): string {
 
 type ModuleScore = { modulo: string; score: number | null; insight_text: string | null; semana: string | null };
 
+type ScoreRow = { modulo: string; score: number | null; semana: string | null };
+type InsightRow = { modulo: string; insight_text: string | null };
+
 /**
- * Carrega o último insight por módulo direto de kph_insights.
- * Abordagem dinâmica: busca os N registros mais recentes e deduplica por modulo.
- * Qualquer módulo novo aparece automaticamente ao gravar o primeiro insight — sem
- * mexer neste código.
+ * Fonte de verdade dos scores: kph_intelligence_scores (coluna score integer + modulo).
+ * Insight textual: kph_insights (coluna insight_text).
+ * Abordagem dinâmica: busca N registros mais recentes de cada tabela e deduplica por
+ * modulo em JS. Qualquer módulo novo aparece automaticamente.
  */
 async function loadModuleScores(): Promise<ModuleScore[]> {
   try {
     const supabase = createServiceClient();
     if (!supabase) return [];
 
-    // Busca os 100 registros mais recentes — suficiente para cobrir todos os módulos
-    const { data, error } = await (supabase as any)
-      .from("kph_insights")
-      .select("modulo, insight_text, semana, dados_referencia, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100);
+    // Fonte de verdade do score: kph_intelligence_scores (score integer nativo)
+    // Fonte do insight text: kph_insights (insight_text)
+    const [scoresRes, insightsRes] = await Promise.all([
+      (supabase as any)
+        .from("kph_intelligence_scores")
+        .select("modulo, score, semana, created_at")
+        .not("modulo", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      (supabase as any)
+        .from("kph_insights")
+        .select("modulo, insight_text, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
 
-    if (error || !data) return [];
+    // Deduplica scores: último por modulo
+    const seenScores = new Set<string>();
+    const scoreMap = new Map<string, ScoreRow>();
+    for (const row of (scoresRes.data ?? []) as ScoreRow[]) {
+      if (!row.modulo || seenScores.has(row.modulo)) continue;
+      seenScores.add(row.modulo);
+      scoreMap.set(row.modulo, row);
+    }
 
-    // Deduplica: mantém apenas a linha mais recente por modulo
-    const seen = new Set<string>();
+    // Deduplica insights: último por modulo
+    const seenInsights = new Set<string>();
+    const insightMap = new Map<string, string | null>();
+    for (const row of (insightsRes.data ?? []) as InsightRow[]) {
+      if (!row.modulo || seenInsights.has(row.modulo)) continue;
+      seenInsights.add(row.modulo);
+      insightMap.set(row.modulo, row.insight_text);
+    }
+
+    // Merge: usa todos os módulos com score como âncora
     const results: ModuleScore[] = [];
-    for (const row of data as Array<{
-      modulo: string;
-      insight_text: string | null;
-      semana: string | null;
-      dados_referencia: { score?: number } | null;
-    }>) {
-      if (seen.has(row.modulo)) continue;
-      seen.add(row.modulo);
+    for (const [mod, sr] of scoreMap) {
       results.push({
-        modulo: row.modulo,
-        score: row.dados_referencia?.score ?? null,
-        insight_text: row.insight_text,
-        semana: row.semana,
+        modulo: mod,
+        score: sr.score,
+        semana: sr.semana,
+        insight_text: insightMap.get(mod) ?? null,
       });
     }
 
-    // Ordena: módulos com score primeiro (desc), depois sem score
+    // Ordena por score desc
     return results.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   } catch {
     return [];
