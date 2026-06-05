@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk";
+import Anthropic from "npm:@anthropic-ai/sdk";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
