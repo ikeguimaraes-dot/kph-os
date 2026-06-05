@@ -410,6 +410,17 @@ async function logError(emailId: string, filename: string, err: unknown) {
   });
 }
 
+// ── Date extraction from filename ───────────────────────────────────────────
+
+// Extracts date from "LOREAN [2031] - Movimento (1908 [01.06.26]).pdf"
+// Pattern [DD.MM.YY] → "20YY-MM-DD"
+function extractDateFromFilename(filename: string): string | null {
+  const m = filename.match(/\[(\d{2})\.(\d{2})\.(\d{2})\]/);
+  if (!m) return null;
+  const [, dd, mm, yy] = m;
+  return `20${yy}-${mm}-${dd}`;
+}
+
 // ── Attachment processing ────────────────────────────────────────────────────
 
 async function processAttachment(
@@ -449,6 +460,15 @@ async function processAttachment(
   const pdfBase64 = await getAttachmentBase64(accessToken, emailId, attachmentId);
   console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
   const parsed = await parsePdfWithClaude(pdfBase64, tipo, filename);
+
+  // Override Claude's date with the filename date — filename is authoritative (DD.MM.YY format)
+  const filenameDate = extractDateFromFilename(filename);
+  if (filenameDate) {
+    console.log(`[lorean] Date override: Claude said "${parsed.data}", filename says "${filenameDate}" — using filename`);
+    parsed.data = filenameDate;
+  } else {
+    console.log(`[lorean] No date in filename, using Claude's date: "${parsed.data}"`);
+  }
 
   if (tipo === "workday") {
     await insertWorkday(parsed, supabaseUnitId, emailId, filename);
