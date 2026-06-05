@@ -179,6 +179,7 @@ Formato esperado:
 }
 
 Regras:
+- IMPORTANTE: As datas estão no formato DD.MM.YY (dia.mês.ano brasileiro). Ex: 02.06.26 = 2 de junho de 2026 = 2026-06-02. Converter para ISO 8601: YYYY-MM-DD.
 - cmv_pct: valor decimal (ex: 0.27 para 27%)
 - pct_bruto: valor decimal (ex: 0.17 para 17%)
 - permanencia_media: formato "HH:MM:SS"
@@ -203,6 +204,7 @@ Formato esperado:
 }
 
 Regras:
+- IMPORTANTE: As datas estão no formato DD.MM.YY (dia.mês.ano brasileiro). Ex: 02.06.26 = 2 de junho de 2026 = 2026-06-02. Converter para ISO 8601: YYYY-MM-DD.
 - Campos não encontrados: usar null
 - pagamentos: array vazio [] se não houver`;
 
@@ -214,7 +216,7 @@ async function parsePdfWithClaude(
   console.log(`[lorean] Calling Claude for ${filename} (tipo: ${tipo})...`);
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages: [
       {
         role: "user",
@@ -463,7 +465,9 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: CORS_HEADERS });
   }
 
-  console.log("[lorean] process-lorean-emails started");
+  const url = new URL(req.url);
+  const limit = Math.max(1, parseInt(url.searchParams.get("limit") ?? "1", 10));
+  console.log(`[lorean] process-lorean-emails started (limit=${limit})`);
 
   try {
     const accessToken = await refreshGmailToken();
@@ -479,17 +483,23 @@ Deno.serve(async (req) => {
     const processedIds = new Set((logRows ?? []).map((r: any) => r.email_id));
     console.log(`[lorean] Already-processed email IDs in window: ${processedIds.size}`);
 
-    const emailIds = await fetchLoreanEmailIds(accessToken);
-    const results = { total_emails: emailIds.length, processed: 0, skipped: 0, errors: 0, detail: [] as any[] };
+    const allEmailIds = await fetchLoreanEmailIds(accessToken);
+    // Apply limit: only process N unprocessed emails per run to avoid timeout
+    const unprocessedIds = allEmailIds.filter((id) => !processedIds.has(id));
+    const emailIds = unprocessedIds.slice(0, limit);
+    console.log(`[lorean] ${allEmailIds.length} total, ${unprocessedIds.length} unprocessed, processing ${emailIds.length} (limit=${limit})`);
+
+    const results = {
+      total_emails: allEmailIds.length,
+      unprocessed: unprocessedIds.length,
+      processing: emailIds.length,
+      processed: 0,
+      skipped: 0,
+      errors: 0,
+      detail: [] as any[],
+    };
 
     for (const emailId of emailIds) {
-      if (processedIds.has(emailId)) {
-        console.log(`[lorean] Skipping already-processed email: ${emailId}`);
-        results.skipped++;
-        results.detail.push({ emailId, status: "skipped" });
-        continue;
-      }
-
       let attachments: Attachment[];
       try {
         attachments = await getEmailAttachments(accessToken, emailId);
@@ -501,9 +511,13 @@ Deno.serve(async (req) => {
       }
 
       // Filter: PDF attachments with "lorean" in name
-      const pdfAttachments = attachments.filter(
-        (a) => /lorean/i.test(a.filename) && /\.pdf$/i.test(a.filename),
-      );
+      // Sort: Movimento (workday) always before Caixa so workday exists when caixa is inserted
+      const pdfAttachments = attachments
+        .filter((a) => /lorean/i.test(a.filename) && /\.pdf$/i.test(a.filename))
+        .sort((a, b) => {
+          const rank = (f: string) => (f.includes("Movimento") ? 0 : f.includes("Caixa") ? 1 : 2);
+          return rank(a.filename) - rank(b.filename);
+        });
 
       // Log attachments that didn't pass the filter
       for (const a of attachments) {
