@@ -208,9 +208,64 @@ Regras:
 - Campos não encontrados: usar null
 - pagamentos: array vazio [] se não houver`;
 
+const VENDA_PROMPT = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
+
+Formato esperado:
+{
+  "workday_id": number,
+  "data": "YYYY-MM-DD",
+  "abertura_at": "YYYY-MM-DD HH:MM:SS",
+  "fechamento_at": "YYYY-MM-DD HH:MM:SS",
+  "receita_bruta": number,
+  "desconto": number,
+  "gorjeta": number,
+  "receita_liquida": number,
+  "custo": number,
+  "cmv_pct": number,
+  "lucro": number,
+  "clientes": number,
+  "ticket_medio": number,
+  "permanencia_media": "HH:MM:SS",
+  "previsto": number,
+  "pagamentos": [
+    { "forma": string, "valor_fechado": number, "valor_recebido": number, "diferenca": number }
+  ],
+  "ambientes": [
+    { "ambiente": string, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
+  ],
+  "turnos": [
+    { "turno": string, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
+  ],
+  "horarios": [
+    { "hora": number, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
+  ],
+  "grupos": [
+    { "grupo": string, "pct_bruto": number, "bruto": number, "desconto": number, "gorjeta": number, "consumo": number }
+  ],
+  "descontos": [
+    { "motivo": string, "qtd": number, "consumo": number }
+  ],
+  "cancelamentos": [
+    { "motivo": string, "qtd": number, "consumo": number }
+  ],
+  "usuarios": [
+    { "usuario": string, "qtd": number, "gorjeta": number, "produto": number, "consumo": number }
+  ]
+}
+
+Regras:
+- IMPORTANTE: As datas estão no formato DD.MM.YY (dia.mês.ano brasileiro). Ex: 02.06.26 = 2 de junho de 2026 = 2026-06-02. Converter para ISO 8601: YYYY-MM-DD.
+- cmv_pct: valor decimal (ex: 0.27 para 27%)
+- pct_bruto: valor decimal (ex: 0.17 para 17%)
+- permanencia_media: formato "HH:MM:SS"
+- horarios.hora: número inteiro da hora (12, 13, 14 ... 23)
+- ambientes: inclui tanto "Por Ambiente" (Salão, Rooftop) quanto "Por Módulo" (Mesa, Comanda) — use o campo "ambiente" para o nome
+- Campos não encontrados: usar null
+- Arrays vazios se a seção não existir: []`;
+
 async function parsePdfWithClaude(
   pdfBase64: string,
-  tipo: "workday" | "caixa",
+  tipo: "workday" | "caixa" | "venda",
   filename: string,
 ) {
   // Create client per-call — avoids shared state issues with npm: shim in Deno
@@ -231,7 +286,7 @@ async function parsePdfWithClaude(
             type: "document",
             source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
           } as any,
-          { type: "text", text: tipo === "workday" ? WORKDAY_PROMPT : CAIXA_PROMPT },
+          { type: "text", text: tipo === "workday" ? WORKDAY_PROMPT : tipo === "venda" ? VENDA_PROMPT : CAIXA_PROMPT },
         ],
       },
     ],
@@ -420,6 +475,97 @@ async function insertCaixa(
   });
 }
 
+async function insertVenda(
+  parsed: any,
+  unitId: string,
+  emailId: string,
+  filename: string,
+) {
+  console.log(`[lorean] insertVenda: data=${parsed.data} unit=${unitId}`);
+
+  const { data: existing } = await supabase
+    .from("lorean_workdays")
+    .select("id, turno, abertura_at")
+    .eq("unit_id", unitId)
+    .eq("data", parsed.data)
+    .maybeSingle();
+
+  let turno: string = "dia_inteiro";
+  if (existing) {
+    const turnoExistente = classifyTurno(existing.abertura_at);
+    await supabase.from("lorean_workdays").update({ turno: turnoExistente }).eq("id", existing.id);
+    turno = classifyTurno(parsed.abertura_at);
+    console.log(`[lorean] Venda reclassificando workday existente para turno=${turnoExistente}, novo=${turno}`);
+  }
+
+  const { data: wd, error: wdErr } = await supabase
+    .from("lorean_workdays")
+    .upsert(
+      {
+        unit_id: unitId,
+        data: parsed.data,
+        workday_id: parsed.workday_id,
+        turno,
+        abertura_at: parsed.abertura_at,
+        fechamento_at: parsed.fechamento_at,
+        receita_bruta: parsed.receita_bruta,
+        desconto: parsed.desconto,
+        gorjeta: parsed.gorjeta,
+        receita_liquida: parsed.receita_liquida,
+        custo: parsed.custo,
+        cmv_pct: parsed.cmv_pct,
+        lucro: parsed.lucro,
+        clientes: parsed.clientes,
+        ticket_medio: parsed.ticket_medio,
+        permanencia_media: parsed.permanencia_media,
+        previsto: parsed.previsto,
+      },
+      { onConflict: "unit_id,data,turno" },
+    )
+    .select()
+    .single();
+
+  if (wdErr) throw new Error(`lorean_workdays upsert (venda): ${wdErr.message}`);
+  console.log(`[lorean] lorean_workdays upserted via Venda: id=${wd.id}`);
+
+  const wdId = wd.id;
+
+  // Idempotent: clear all child tables before re-inserting
+  await Promise.all([
+    supabase.from("lorean_pagamentos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_ambientes").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_turnos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_grupos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_horarios").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_usuarios").delete().eq("workday_id_fk", wdId),
+    supabase.from("lorean_cancelamentos").delete().eq("workday_id_fk", wdId),
+  ]);
+
+  const inserts: Promise<any>[] = [];
+  const tag = (arr: any[], key: string) => (arr ?? []).map((r: any) => ({ ...r, workday_id_fk: wdId, [key]: r[key] }));
+
+  if (parsed.pagamentos?.length)    inserts.push(supabase.from("lorean_pagamentos").insert(tag(parsed.pagamentos, "forma")));
+  if (parsed.ambientes?.length)     inserts.push(supabase.from("lorean_ambientes").insert(tag(parsed.ambientes, "ambiente")));
+  if (parsed.turnos?.length)        inserts.push(supabase.from("lorean_turnos").insert(tag(parsed.turnos, "turno")));
+  if (parsed.grupos?.length)        inserts.push(supabase.from("lorean_grupos").insert(tag(parsed.grupos, "grupo")));
+  if (parsed.descontos?.length)     inserts.push(supabase.from("lorean_descontos").insert(tag(parsed.descontos, "motivo")));
+  if (parsed.horarios?.length)      inserts.push(supabase.from("lorean_horarios").insert(tag(parsed.horarios, "hora")));
+  if (parsed.usuarios?.length)      inserts.push(supabase.from("lorean_usuarios").insert(tag(parsed.usuarios, "usuario")));
+  if (parsed.cancelamentos?.length) inserts.push(supabase.from("lorean_cancelamentos").insert(tag(parsed.cancelamentos, "motivo")));
+
+  await Promise.all(inserts);
+  console.log(`[lorean] Venda child tables inserted: pagamentos=${parsed.pagamentos?.length ?? 0} ambientes=${parsed.ambientes?.length ?? 0} horarios=${parsed.horarios?.length ?? 0} usuarios=${parsed.usuarios?.length ?? 0} cancelamentos=${parsed.cancelamentos?.length ?? 0}`);
+
+  await supabase.from("lorean_import_log").insert({
+    email_id: emailId,
+    filename,
+    tipo: "venda",
+    data_referente: parsed.data,
+    status: "success",
+  });
+}
+
 async function logError(emailId: string, filename: string, err: unknown) {
   const tipo = filename.includes("Movimento") ? "workday" : filename.includes("Caixa") ? "caixa" : "venda";
   const errMsg = String(err);
@@ -474,11 +620,6 @@ async function processAttachment(
     ? "caixa"
     : "venda";
 
-  if (tipo === "venda") {
-    console.log(`[lorean] Skipping "Venda" PDF (not implemented): ${filename}`);
-    return;
-  }
-
   console.log(`[lorean] Downloading PDF attachment ${attachmentId}...`);
   const pdfBase64 = await getAttachmentBase64(accessToken, emailId, attachmentId);
   console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
@@ -495,6 +636,8 @@ async function processAttachment(
 
   if (tipo === "workday") {
     await insertWorkday(parsed, supabaseUnitId, emailId, filename);
+  } else if (tipo === "venda") {
+    await insertVenda(parsed, supabaseUnitId, emailId, filename);
   } else {
     await insertCaixa(parsed, supabaseUnitId, emailId, filename);
   }
@@ -558,7 +701,7 @@ Deno.serve(async (req) => {
       const pdfAttachments = attachments
         .filter((a) => /lorean/i.test(a.filename) && /\.pdf$/i.test(a.filename))
         .sort((a, b) => {
-          const rank = (f: string) => (f.includes("Movimento") ? 0 : f.includes("Caixa") ? 1 : 2);
+          const rank = (f: string) => (f.includes("Movimento") ? 0 : f.includes("Venda") ? 1 : f.includes("Caixa") ? 2 : 3);
           return rank(a.filename) - rank(b.filename);
         });
 
