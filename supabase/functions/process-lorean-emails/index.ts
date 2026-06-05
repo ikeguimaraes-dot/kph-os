@@ -11,7 +11,7 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+// Client created per-call inside parsePdfWithClaude to avoid shared state with npm: shim
 
 // ── Gmail OAuth ─────────────────────────────────────────────────────────────
 
@@ -213,8 +213,14 @@ async function parsePdfWithClaude(
   tipo: "workday" | "caixa",
   filename: string,
 ) {
-  console.log(`[lorean] Calling Claude for ${filename} (tipo: ${tipo})...`);
-  const response = await anthropic.messages.create({
+  // Create client per-call — avoids shared state issues with npm: shim in Deno
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY secret not set");
+
+  const client = new Anthropic({ apiKey });
+  console.log(`[lorean] Calling Claude for ${filename} (tipo: ${tipo}, apiKey prefix: ${apiKey.slice(0, 10)}...)`);
+
+  const response = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
     messages: [
@@ -231,12 +237,29 @@ async function parsePdfWithClaude(
     ],
   });
 
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  console.log(`[lorean] Claude raw response for ${filename} (first 300 chars):`, text.slice(0, 300));
+  // Log full response structure to diagnose unexpected formats
+  console.log(`[lorean] Response for ${filename}: stop_reason=${response.stop_reason} content_blocks=${response.content.length}`);
+  for (const [i, block] of response.content.entries()) {
+    console.log(`[lorean]   block[${i}]: type=${block.type} text_len=${block.type === "text" ? block.text.length : "N/A"}`);
+  }
 
-  const clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  // Find the first text block — don't assume it's index 0
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error(`No text block in Claude response for ${filename}. stop_reason=${response.stop_reason}`);
+  }
+
+  const raw = textBlock.text;
+  console.log(`[lorean] Raw text for ${filename} (first 400 chars): ${raw.slice(0, 400)}`);
+
+  // Guard: catch the case where Claude output is not JSON at all
+  const clean = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  if (!clean.startsWith("{")) {
+    throw new Error(`Claude response is not JSON for ${filename}. Starts with: "${clean.slice(0, 80)}"`);
+  }
+
   const parsed = JSON.parse(clean);
-  console.log(`[lorean] Parsed JSON keys for ${filename}:`, Object.keys(parsed));
+  console.log(`[lorean] Parsed OK for ${filename}: keys=${Object.keys(parsed).join(",")}`);
   return parsed;
 }
 
