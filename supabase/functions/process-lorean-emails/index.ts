@@ -208,9 +208,9 @@ Regras:
 - Campos não encontrados: usar null
 - pagamentos: array vazio [] se não houver`;
 
-const VENDA_PROMPT = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
+const VENDA_PROMPT_1 = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
 
-Este relatório contém detalhamento de vendas por grupo de produto, desconto, cancelamento, horário e garçom. NÃO contém receita bruta, pagamentos, ambientes ou turnos — não invente esses campos.
+Extraia SOMENTE estes 3 arrays: grupos de produto, descontos e cancelamentos.
 
 Formato esperado:
 {
@@ -222,7 +222,19 @@ Formato esperado:
   ],
   "cancelamentos": [
     { "motivo": string, "qtd": number, "consumo": number }
-  ],
+  ]
+}
+
+Regras:
+- pct_bruto: valor decimal (ex: 0.17 para 17%)
+- Arrays vazios se a seção não existir no PDF: []`;
+
+const VENDA_PROMPT_2 = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
+
+Extraia SOMENTE estes 2 arrays: vendas por horário e vendas por garçom/usuário.
+
+Formato esperado:
+{
   "horarios": [
     { "hora": number, "clientes": number, "gorjeta": number, "produto": number, "consumo": number }
   ],
@@ -232,22 +244,21 @@ Formato esperado:
 }
 
 Regras:
-- pct_bruto: valor decimal (ex: 0.17 para 17%)
 - horarios.hora: número inteiro da hora (12, 13, 14 ... 23)
-- Campos não encontrados: usar null
 - Arrays vazios se a seção não existir no PDF: []`;
 
 async function parsePdfWithClaude(
   pdfBase64: string,
-  tipo: "workday" | "caixa" | "venda",
+  prompt: string,
   filename: string,
+  label: string,
 ) {
   // Create client per-call — avoids shared state issues with npm: shim in Deno
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY secret not set");
 
   const client = new Anthropic({ apiKey });
-  console.log(`[lorean] Calling Claude for ${filename} (tipo: ${tipo}, apiKey prefix: ${apiKey.slice(0, 10)}...)`);
+  console.log(`[lorean] Calling Claude for ${filename} (label: ${label}, apiKey prefix: ${apiKey.slice(0, 10)}...)`);
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -260,14 +271,14 @@ async function parsePdfWithClaude(
             type: "document",
             source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
           } as any,
-          { type: "text", text: tipo === "workday" ? WORKDAY_PROMPT : tipo === "venda" ? VENDA_PROMPT : CAIXA_PROMPT },
+          { type: "text", text: prompt },
         ],
       },
     ],
   });
 
   // Log full response structure to diagnose unexpected formats
-  console.log(`[lorean] Response for ${filename}: stop_reason=${response.stop_reason} content_blocks=${response.content.length}`);
+  console.log(`[lorean] Response for ${filename} [${label}]: stop_reason=${response.stop_reason} content_blocks=${response.content.length}`);
   for (const [i, block] of response.content.entries()) {
     console.log(`[lorean]   block[${i}]: type=${block.type} text_len=${block.type === "text" ? block.text.length : "N/A"}`);
   }
@@ -275,21 +286,20 @@ async function parsePdfWithClaude(
   // Find the first text block — don't assume it's index 0
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
-    throw new Error(`No text block in Claude response for ${filename}. stop_reason=${response.stop_reason}`);
+    throw new Error(`No text block in Claude response for ${filename} [${label}]. stop_reason=${response.stop_reason}`);
   }
 
   const raw = textBlock.text;
-  const logLen = tipo === "venda" ? 3000 : 600;
-  console.log(`[lorean] Raw text for ${filename} (first ${logLen} chars): ${raw.slice(0, logLen)}`);
+  console.log(`[lorean] Raw text for ${filename} [${label}] (first 2000 chars): ${raw.slice(0, 2000)}`);
 
   // Guard: catch the case where Claude output is not JSON at all
   const clean = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
   if (!clean.startsWith("{")) {
-    throw new Error(`Claude response is not JSON for ${filename}. Starts with: "${clean.slice(0, 80)}"`);
+    throw new Error(`Claude response is not JSON for ${filename} [${label}]. Starts with: "${clean.slice(0, 80)}"`);
   }
 
   const parsed = JSON.parse(clean);
-  console.log(`[lorean] Parsed OK for ${filename}: keys=${Object.keys(parsed).join(",")}`);
+  console.log(`[lorean] Parsed OK for ${filename} [${label}]: keys=${Object.keys(parsed).join(",")}`);
   return parsed;
 }
 
@@ -573,23 +583,38 @@ async function processAttachment(
   console.log(`[lorean] Downloading PDF attachment ${attachmentId}...`);
   const pdfBase64 = await getAttachmentBase64(accessToken, emailId, attachmentId);
   console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
-  const parsed = await parsePdfWithClaude(pdfBase64, tipo, filename);
 
-  // Override Claude's date with the filename date — filename is authoritative (DD.MM.YY format)
-  const filenameDate = extractDateFromFilename(filename);
-  if (filenameDate) {
-    console.log(`[lorean] Date override: Claude said "${parsed.data}", filename says "${filenameDate}" — using filename`);
-    parsed.data = filenameDate;
-  } else {
-    console.log(`[lorean] No date in filename, using Claude's date: "${parsed.data}"`);
-  }
-
-  if (tipo === "workday") {
-    await insertWorkday(parsed, supabaseUnitId, emailId, filename);
-  } else if (tipo === "venda") {
+  if (tipo === "venda") {
+    // Split into 2 parallel calls — grupos/descontos/cancelamentos + horarios/usuarios
+    console.log(`[lorean] Venda: dispatching 2 parallel Claude calls`);
+    const [part1, part2] = await Promise.all([
+      parsePdfWithClaude(pdfBase64, VENDA_PROMPT_1, filename, "venda-part1"),
+      parsePdfWithClaude(pdfBase64, VENDA_PROMPT_2, filename, "venda-part2"),
+    ]);
+    const parsed = { ...part1, ...part2 };
     await insertVenda(parsed, supabaseUnitId, emailId, filename);
   } else {
-    await insertCaixa(parsed, supabaseUnitId, emailId, filename);
+    const parsed = await parsePdfWithClaude(
+      pdfBase64,
+      tipo === "workday" ? WORKDAY_PROMPT : CAIXA_PROMPT,
+      filename,
+      tipo,
+    );
+
+    // Override Claude's date with the filename date — filename is authoritative (DD.MM.YY format)
+    const filenameDate = extractDateFromFilename(filename);
+    if (filenameDate) {
+      console.log(`[lorean] Date override: Claude said "${parsed.data}", filename says "${filenameDate}" — using filename`);
+      parsed.data = filenameDate;
+    } else {
+      console.log(`[lorean] No date in filename, using Claude's date: "${parsed.data}"`);
+    }
+
+    if (tipo === "workday") {
+      await insertWorkday(parsed, supabaseUnitId, emailId, filename);
+    } else {
+      await insertCaixa(parsed, supabaseUnitId, emailId, filename);
+    }
   }
   console.log(`[lorean] Done: ${filename}`);
 }
