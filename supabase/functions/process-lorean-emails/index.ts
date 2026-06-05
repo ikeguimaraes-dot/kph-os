@@ -334,10 +334,7 @@ async function insertWorkday(
   emailId: string,
   filename: string,
 ) {
-  console.log(`[lorean] insertWorkday: data=${parsed.data} unit=${unitId}`);
-
-  const turno = classifyTurno(parsed.abertura_at);
-  console.log(`[lorean] turno=${turno} (abertura_at=${parsed.abertura_at})`);
+  console.log(`[lorean] insertWorkday: data=${parsed.data} workday_id=${parsed.workday_id} unit=${unitId}`);
 
   const { data: wd, error: wdErr } = await supabase
     .from("lorean_workdays")
@@ -346,7 +343,7 @@ async function insertWorkday(
         unit_id: unitId,
         data: parsed.data,
         workday_id: parsed.workday_id,
-        turno,
+        turno: "dia_inteiro",  // placeholder — reclassificado abaixo
         abertura_at: parsed.abertura_at,
         fechamento_at: parsed.fechamento_at,
         receita_bruta: parsed.receita_bruta,
@@ -363,13 +360,30 @@ async function insertWorkday(
         previsto: parsed.previsto,
         devedor: parsed.devedor,
       },
-      { onConflict: "unit_id,data,turno" },
+      { onConflict: "unit_id,workday_id" },
     )
     .select()
     .single();
 
   if (wdErr) throw new Error(`lorean_workdays upsert: ${wdErr.message}`);
   console.log(`[lorean] lorean_workdays upserted: id=${wd.id}`);
+
+  // Reclassifica todos os workdays do dia por ordem de workday_id
+  const { data: siblings } = await supabase
+    .from("lorean_workdays")
+    .select("id, workday_id")
+    .eq("unit_id", unitId)
+    .eq("data", parsed.data)
+    .order("workday_id", { ascending: true });
+
+  if (siblings?.length === 1) {
+    await supabase.from("lorean_workdays").update({ turno: "dia_inteiro" }).eq("id", siblings[0].id);
+    console.log(`[lorean] turno: dia_inteiro (único workday do dia)`);
+  } else if (siblings && siblings.length >= 2) {
+    await supabase.from("lorean_workdays").update({ turno: "almoco" }).eq("id", siblings[0].id);
+    await supabase.from("lorean_workdays").update({ turno: "jantar" }).eq("id", siblings[1].id);
+    console.log(`[lorean] turno: workday_id=${siblings[0].workday_id}→almoco, workday_id=${siblings[1].workday_id}→jantar`);
+  }
 
   await Promise.all([
     supabase.from("lorean_pagamentos").delete().eq("workday_id_fk", wd.id),
