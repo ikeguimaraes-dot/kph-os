@@ -66,26 +66,69 @@ export function TopBar() {
       </button>
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        <div className="shell-topbar-title" style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-          {greeting()}, {name} · <span style={{ color: "var(--text-3)" }}>{title}</span>
+        <div
+          className="shell-topbar-title"
+          style={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: "var(--text-3)",
+            fontFamily: "var(--font-ui)",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-display)",
+              fontStyle: "italic",
+              fontWeight: 300,
+              color: "var(--text)",
+              fontSize: "0.9375rem",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {greeting()}, {name}
+          </span>
+          {" · "}
+          {title}
         </div>
-        <div className="shell-topbar-date" style={{ fontSize: 11, color: "var(--text-3)" }}>
+        <div
+          className="shell-topbar-date"
+          style={{ fontSize: "0.6875rem", color: "var(--text-3)", fontFamily: "var(--font-ui)" }}
+        >
           {fmtDate()}
         </div>
       </div>
 
-      <button className="shell-topbar-search" title="Buscar (Cmd/Ctrl+K)" style={{
-        display: "inline-flex", alignItems: "center", gap: 8,
-        padding: "8px 12px", background: "var(--surface)", border: "1px solid var(--border)",
-        borderRadius: 8, color: "var(--text-3)", fontSize: 12, cursor: "pointer",
-        transition: "border-color var(--t), color var(--t)",
-      }}>
+      <button
+        className="shell-topbar-search"
+        title="Buscar (Cmd/Ctrl+K)"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          padding: "8px 12px",
+          background: "var(--surface)",
+          border: "1px solid var(--border-soft, rgba(245,240,232,0.08))",
+          borderRadius: "var(--r-md, 6px)",
+          color: "var(--text-3)", fontSize: "0.75rem", cursor: "pointer",
+          transition: "border-color var(--t, 180ms ease), color var(--t, 180ms ease)",
+          fontFamily: "var(--font-ui)",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = "var(--border-hover, rgba(245,240,232,0.16))";
+          e.currentTarget.style.color = "var(--text-2, #C4BDB4)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = "var(--border-soft, rgba(245,240,232,0.08))";
+          e.currentTarget.style.color = "var(--text-3)";
+        }}
+      >
         <Search size={14} />
         <span>Buscar</span>
         <span style={{
-          marginLeft: 8, padding: "1px 6px", background: "var(--surface-2)",
-          border: "1px solid var(--border)", borderRadius: 4,
-          fontFamily: "var(--font-geist-mono), monospace", fontSize: 10, color: "var(--text-3)",
+          marginLeft: 6, padding: "1px 6px",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-soft, rgba(245,240,232,0.08))",
+          borderRadius: "var(--r-sm, 4px)",
+          fontFamily: "var(--font-ui)", fontSize: "0.625rem", color: "var(--text-3)",
+          letterSpacing: "0.02em",
         }}>⌘K</span>
       </button>
 

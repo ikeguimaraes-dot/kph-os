@@ -81,31 +81,37 @@ export default async function DashboardPage() {
     <div style={{ maxWidth: 1240, margin: "0 auto" }}>
       {/* SEÇÃO 1 — Header executivo */}
       <header
+        className="anim-fade-up"
         style={{
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "space-between",
           gap: 16,
-          marginBottom: 24,
+          marginBottom: 28,
         }}
       >
         <div>
           <h1
             style={{
-              fontSize: 28,
-              fontWeight: 700,
+              fontFamily: "var(--font-display)",
+              fontSize: "1.875rem",
+              fontWeight: 300,
+              fontStyle: "italic",
               color: "var(--text)",
-              letterSpacing: -0.6,
+              letterSpacing: "-0.02em",
               margin: 0,
+              lineHeight: 1.1,
             }}
           >
-            {greet}, {nome}
+            {greet}, {nome}.
           </h1>
           <p
             style={{
-              fontSize: 13,
+              fontSize: "0.8125rem",
               color: "var(--text-3)",
-              marginTop: 6,
+              marginTop: 7,
+              fontFamily: "var(--font-ui)",
+              letterSpacing: "0.01em",
             }}
           >
             Grupo KPH · {dia} · {resumo.total_marcas_ativas} marcas ativas
@@ -118,18 +124,19 @@ export default async function DashboardPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              padding: "6px 12px",
-              fontSize: 11,
+              padding: "5px 12px",
+              fontSize: "0.6875rem",
               fontWeight: 700,
-              letterSpacing: 0.6,
+              letterSpacing: "0.06em",
               textTransform: "uppercase",
-              background: "rgba(239,68,68,0.10)",
-              border: "1px solid rgba(239,68,68,0.40)",
-              color: "#EF4444",
-              borderRadius: 99,
+              background: "var(--color-danger-bg, rgba(252,165,165,0.08))",
+              border: "1px solid rgba(252,165,165,0.30)",
+              color: "var(--color-danger, #FCA5A5)",
+              borderRadius: "9999px",
+              fontFamily: "var(--font-ui)",
             }}
           >
-            ! {resumo.alertas_criticos} alerta
+            {resumo.alertas_criticos} alerta
             {resumo.alertas_criticos > 1 ? "s" : ""} crítico
             {resumo.alertas_criticos > 1 ? "s" : ""}
           </span>
@@ -138,6 +145,7 @@ export default async function DashboardPage() {
 
       {/* SEÇÃO 2 — KPI cards do grupo */}
       <section
+        className="stagger"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -468,47 +476,51 @@ function EmptyDashboard({
   dia: string;
 }) {
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <header style={{ marginBottom: 24 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto" }} className="anim-fade-up">
+      <header style={{ marginBottom: 28 }}>
         <h1
           style={{
-            fontSize: 26,
-            fontWeight: 700,
+            fontFamily: "var(--font-display)",
+            fontSize: "1.875rem",
+            fontWeight: 300,
+            fontStyle: "italic",
             color: "var(--text)",
-            letterSpacing: -0.5,
+            letterSpacing: "-0.02em",
             margin: 0,
+            lineHeight: 1.1,
           }}
         >
-          {greet}, {nome}
+          {greet}, {nome}.
         </h1>
-        <p style={{ fontSize: 13, color: "var(--text-3)", marginTop: 6 }}>
+        <p style={{ fontSize: "0.8125rem", color: "var(--text-3)", marginTop: 7 }}>
           Grupo KPH · {dia}
         </p>
       </header>
 
       <div
         style={{
-          padding: "60px 32px",
+          padding: "56px 32px",
           textAlign: "center",
           background: "var(--surface)",
-          border: "1px dashed var(--border)",
-          borderRadius: 16,
+          border: "1px dashed var(--border-hover, rgba(245,240,232,0.16))",
+          borderRadius: "var(--r-xl, 14px)",
         }}
       >
         <h2
           style={{
-            fontSize: 18,
-            fontWeight: 700,
+            fontFamily: "var(--font-display)",
+            fontSize: "1.125rem",
+            fontWeight: 400,
             color: "var(--text)",
             margin: 0,
-            marginBottom: 8,
+            marginBottom: 10,
           }}
         >
-          Nenhuma marca acessível no seu perfil
+          Ainda não há marcas no seu perfil.
         </h2>
         <p
           style={{
-            fontSize: 13,
+            fontSize: "0.8125rem",
             color: "var(--text-3)",
             maxWidth: 460,
             margin: "0 auto",

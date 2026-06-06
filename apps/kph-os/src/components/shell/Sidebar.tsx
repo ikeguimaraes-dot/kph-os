@@ -135,16 +135,38 @@ export function Sidebar() {
         }}
       >
         <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)", letterSpacing: -0.5 }}>
-            KPH <span style={{ color: "var(--brand)" }}>OS</span>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.25rem",
+              fontWeight: 400,
+              color: "var(--text)",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+            }}
+          >
+            KPH{" "}
+            <span
+              style={{
+                color: "var(--kph-ouro, #B8975A)",
+                fontStyle: "italic",
+              }}
+            >
+              OS
+            </span>
           </div>
           <div
             style={{
-              fontSize: 10, color: "var(--text-3)", marginTop: 2,
-              letterSpacing: 1.2, textTransform: "uppercase", fontWeight: 600,
+              fontSize: "0.625rem",
+              color: "var(--text-3)",
+              marginTop: 4,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              fontWeight: 600,
+              fontFamily: "var(--font-ui)",
             }}
           >
-            Operations
+            Operações
           </div>
         </div>
 
@@ -266,9 +288,17 @@ export function Sidebar() {
             title="Sair"
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 28, height: 28, borderRadius: 6,
+              width: 44, height: 44, borderRadius: "var(--r-md, 6px)",
               color: "var(--text-3)", textDecoration: "none",
-              transition: "color var(--t), background var(--t)",
+              transition: "color var(--t, 180ms ease), background var(--t, 180ms ease)",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-danger, #FCA5A5)";
+              (e.currentTarget as HTMLAnchorElement).style.background = "rgba(252,165,165,0.06)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-3)";
+              (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
             }}
           >
             <LogOut size={14} />
