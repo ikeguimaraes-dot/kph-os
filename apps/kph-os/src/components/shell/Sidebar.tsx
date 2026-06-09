@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+// Prefixos que pertencem a zonas externas — navegação deve ser full-page (<a>),
+// não client-side (<Link>), para o rewrite do Next.js ser aplicado corretamente.
+const ZONE_PREFIXES = [
+  "/financeiro", "/pessoas", "/operacao", "/compras",
+  "/comercial", "/marca", "/inteligencia",
+];
+function isZoneHref(href: string) {
+  return ZONE_PREFIXES.some((p) => href === p || href.startsWith(p + "/"));
+}
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NAV_CONFIG, type NavGroupConfig, type NavItemConfig } from "@/lib/nav-config";
 import {
@@ -524,8 +534,9 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                           if (!child.href) return null;
                           const ChildIcon = child.icon;
                           const childIsActive = child.href === activeHref;
+                          const ChildNavEl = isZoneHref(child.href) ? "a" : Link;
                           return (
-                            <Link
+                            <ChildNavEl
                               key={child.href}
                               href={child.href}
                               style={{
@@ -562,7 +573,7 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                                 style={{ color: childIsActive ? "var(--brand)" : "currentColor" }}
                               />
                               <span style={{ flex: 1 }}>{child.label}</span>
-                            </Link>
+                            </ChildNavEl>
                           );
                         })}
                     </div>
@@ -570,8 +581,9 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                 }
 
                 const active = it.href === activeHref;
+                const NavEl = isZoneHref(it.href!) ? "a" : Link;
                 return (
-                  <Link
+                  <NavEl
                     key={it.href}
                     href={it.href!}
                     style={{
@@ -608,7 +620,7 @@ function SidebarNav({ pathname, groups }: { pathname: string; groups: NavGroup[]
                       style={{ color: active ? "var(--brand)" : "currentColor" }}
                     />
                     <span style={{ flex: 1 }}>{it.label}</span>
-                  </Link>
+                  </NavEl>
                 );
               })}
           </div>
