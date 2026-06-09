@@ -3,6 +3,7 @@ export type NavItemConfig = {
   label: string;
   icon: string;
   defaultOpen?: boolean;
+  roles?: string[];
   children?: NavItemConfig[];
 };
 
@@ -34,6 +35,8 @@ export const NAV_CONFIG: NavGroupConfig[] = [
       { label: "Performance",   href: "/operacao/performance",  icon: "Activity" },
       { label: "Vendedores",    href: "/operacao/vendedores",   icon: "UserCheck" },
       { label: "Auditorias",    href: "/operacao/auditorias",   icon: "ClipboardList" },
+      { label: "Eventos",                   href: "/operacao/eventos",                         icon: "CalendarDays",  roles: ["gm", "founder", "comercial"] },
+      { label: "Formulário de Recrutamento", href: "/operacao/pessoas/formulario-recrutamento", icon: "ClipboardList", roles: ["pessoas", "gm", "founder"] },
     ],
   },
   {
