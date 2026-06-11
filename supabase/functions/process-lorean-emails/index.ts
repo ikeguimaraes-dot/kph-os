@@ -175,6 +175,9 @@ Formato esperado:
   ],
   "descontos": [
     { "motivo": string, "qtd": number, "consumo": number }
+  ],
+  "descontos_detalhe": [
+    { "item": string, "usuario": string, "motivo": string, "qtd": number, "valor": number }
   ]
 }
 
@@ -185,7 +188,8 @@ Regras:
 - pct_bruto: valor decimal (ex: 0.17 para 17%)
 - permanencia_media: formato "HH:MM:SS"
 - Campos não encontrados no PDF: usar null
-- Arrays vazios se a seção não existir: []`;
+- Arrays vazios se a seção não existir: []
+- descontos_detalhe: extrair da seção detalhada de Desconto que lista cada produto descontado com Usuário, Motivo, Qtde e Consumo (ignorar as linhas de cabeçalho de comanda como '115 - LOREAN DESK'). valor = coluna Consumo.`;
 
 const CAIXA_PROMPT = `Extraia os dados deste relatório de fechamento de caixa Lorean e retorne APENAS JSON válido, sem texto adicional, sem markdown.
 
@@ -211,15 +215,12 @@ Regras:
 
 const VENDA_PROMPT_1 = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
 
-Extraia SOMENTE estes 3 arrays: grupos de produto, descontos e cancelamentos.
+Extraia SOMENTE estes 2 arrays: grupos de produto e cancelamentos.
 
 Formato esperado:
 {
   "grupos": [
     { "grupo": string, "pct_bruto": number, "bruto": number, "desconto": number, "gorjeta": number, "consumo": number }
-  ],
-  "descontos": [
-    { "motivo": string, "qtd": number, "consumo": number }
   ],
   "cancelamentos": [
     { "motivo": string, "qtd": number, "consumo": number }
@@ -229,6 +230,22 @@ Formato esperado:
 Regras:
 - pct_bruto: valor decimal (ex: 0.17 para 17%)
 - Arrays vazios se a seção não existir no PDF: []`;
+
+const VENDA_PROMPT_3 = `Extraia TODOS os produtos vendidos de TODAS as seções de grupo deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
+
+Cada seção tem um título de grupo (ex: Soft Drinks, Vinho Tinto, Da Brasa) e linhas de produtos com colunas Qtde, Garrafa, CMV, Bruto, Desconto, Gorjeta, Total.
+
+Formato esperado:
+{
+  "produtos": [
+    { "grupo": string, "produto": string, "qtd": number, "cmv_pct": number, "bruto": number, "desconto": number, "gorjeta": number, "total": number }
+  ]
+}
+
+Regras:
+- cmv_pct: valor decimal (ex: 0.27 para 27%)
+- Ignorar linhas de subtotal das seções
+- Array vazio [] se não houver produtos`;
 
 const VENDA_PROMPT_2 = `Extraia os dados deste relatório Lorean de Venda e retorne APENAS JSON válido, sem texto adicional, sem markdown.
 
@@ -410,6 +427,7 @@ async function insertWorkday(
     supabase.from("lorean_turnos").delete().eq("workday_id_fk", wd.id),
     supabase.from("lorean_grupos").delete().eq("workday_id_fk", wd.id),
     supabase.from("lorean_descontos").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_descontos_detalhe").delete().eq("workday_id_fk", wd.id),
   ]);
 
   const inserts: Promise<any>[] = [];
@@ -438,9 +456,14 @@ async function insertWorkday(
       parsed.descontos.map((d: any) => ({ ...d, workday_id_fk: wd.id })),
     ));
   }
+  if (parsed.descontos_detalhe?.length) {
+    inserts.push(supabase.from("lorean_descontos_detalhe").insert(
+      parsed.descontos_detalhe.map((d: any) => ({ ...d, workday_id_fk: wd.id })),
+    ));
+  }
   await Promise.all(inserts);
 
-  console.log(`[lorean] Child tables inserted for workday ${wd.id}: pagamentos=${parsed.pagamentos?.length ?? 0} ambientes=${parsed.ambientes?.length ?? 0} turnos=${parsed.turnos?.length ?? 0} grupos=${parsed.grupos?.length ?? 0} descontos=${parsed.descontos?.length ?? 0}`);
+  console.log(`[lorean] Child tables inserted for workday ${wd.id}: pagamentos=${parsed.pagamentos?.length ?? 0} ambientes=${parsed.ambientes?.length ?? 0} turnos=${parsed.turnos?.length ?? 0} grupos=${parsed.grupos?.length ?? 0} descontos=${parsed.descontos?.length ?? 0} descontos_detalhe=${parsed.descontos_detalhe?.length ?? 0}`);
 
   await supabase.from("lorean_import_log").insert({
     email_id: emailId,
@@ -526,27 +549,25 @@ async function insertVenda(
   // Idempotent: clear Venda-specific child tables before re-inserting
   await Promise.all([
     supabase.from("lorean_grupos").delete().eq("workday_id_fk", wd.id),
-    supabase.from("lorean_descontos").delete().eq("workday_id_fk", wd.id),
     supabase.from("lorean_cancelamentos").delete().eq("workday_id_fk", wd.id),
     supabase.from("lorean_horarios").delete().eq("workday_id_fk", wd.id),
     supabase.from("lorean_usuarios").delete().eq("workday_id_fk", wd.id),
+    supabase.from("lorean_produtos_dia").delete().eq("workday_id_fk", wd.id),
   ]);
 
   console.log("[venda] grupos:", parsed.grupos?.length ?? 0);
-  console.log("[venda] descontos:", parsed.descontos?.length ?? 0);
   console.log("[venda] cancelamentos:", parsed.cancelamentos?.length ?? 0);
   console.log("[venda] horarios:", parsed.horarios?.length ?? 0);
   console.log("[venda] usuarios:", parsed.usuarios?.length ?? 0);
+  console.log("[venda] produtos:", parsed.produtos?.length ?? 0);
   console.log("[venda] JSON keys from Claude:", Object.keys(parsed).join(", "));
-  console.log("[venda] horarios sample:", JSON.stringify(parsed.horarios?.slice(0, 2)));
-  console.log("[venda] usuarios sample:", JSON.stringify(parsed.usuarios?.slice(0, 2)));
 
   const inserts: Promise<any>[] = [];
   if (parsed.grupos?.length)        inserts.push(supabase.from("lorean_grupos").insert(parsed.grupos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
-  if (parsed.descontos?.length)     inserts.push(supabase.from("lorean_descontos").insert(parsed.descontos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
   if (parsed.cancelamentos?.length) inserts.push(supabase.from("lorean_cancelamentos").insert(parsed.cancelamentos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
   if (parsed.horarios?.length)      inserts.push(supabase.from("lorean_horarios").insert(parsed.horarios.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
   if (parsed.usuarios?.length)      inserts.push(supabase.from("lorean_usuarios").insert(parsed.usuarios.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
+  if (parsed.produtos?.length)      inserts.push(supabase.from("lorean_produtos_dia").insert(parsed.produtos.map((r: any) => ({ ...r, workday_id_fk: wd.id }))));
 
   await Promise.all(inserts);
   console.log("[venda] inserts dispatched");
@@ -619,15 +640,17 @@ async function processAttachment(
   console.log(`[lorean] PDF downloaded, base64 length=${pdfBase64.length}`);
 
   if (tipo === "venda") {
-    console.log("[venda] starting 2-part extraction");
-    const [part1, part2] = await Promise.all([
+    console.log("[venda] starting 3-part extraction");
+    const [part1, part2, part3] = await Promise.all([
       parsePdfWithClaude(pdfBase64, VENDA_PROMPT_1, filename, "venda-part1"),
       parsePdfWithClaude(pdfBase64, VENDA_PROMPT_2, filename, "venda-part2"),
+      parsePdfWithClaude(pdfBase64, VENDA_PROMPT_3, filename, "venda-part3"),
     ]);
-    const result = { ...part1, ...part2 };
+    const result = { ...part1, ...part2, ...part3 };
+    console.log("[venda] merged grupos:", result.grupos?.length ?? 0);
     console.log("[venda] merged horarios:", result.horarios?.length ?? 0);
     console.log("[venda] merged usuarios:", result.usuarios?.length ?? 0);
-    console.log("[venda] merged grupos:", result.grupos?.length ?? 0);
+    console.log("[venda] merged produtos:", result.produtos?.length ?? 0);
     console.log("[venda] merged keys:", Object.keys(result).join(", "));
     await insertVenda(result, supabaseUnitId, emailId, filename);
   } else {
