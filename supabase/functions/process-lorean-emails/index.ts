@@ -284,7 +284,7 @@ async function parsePdfWithClaude(
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -303,6 +303,10 @@ async function parsePdfWithClaude(
   console.log(`[lorean] Response for ${filename} [${label}]: stop_reason=${response.stop_reason} content_blocks=${response.content.length}`);
   for (const [i, block] of response.content.entries()) {
     console.log(`[lorean]   block[${i}]: type=${block.type} text_len=${block.type === "text" ? block.text.length : "N/A"}`);
+  }
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(`JSON truncado para ${label} — aumentar max_tokens`);
   }
 
   // Find the first text block — don't assume it's index 0
