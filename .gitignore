@@ -50,3 +50,17 @@ ref_system/
 # turbo
 .turbo
 .claude/scheduled_tasks.lock
+
+# Tooling local (Claude Code) — máquina pessoal, não versionar
+.agents/
+.claude/
+skills-lock.json
+
+# Supabase CLI — estado temporário local
+supabase/.temp/
+
+# Outputs de auditoria/build local
+audit_result.txt
+audit.sh
+build_output.log
+lint_output.log
