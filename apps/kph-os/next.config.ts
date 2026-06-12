@@ -1,3 +1,5 @@
+import path from "node:path";
+
 const zones = [
   { prefix: "/financeiro",   host: "kph-os-financeiro.vercel.app" },
   { prefix: "/pessoas",      host: "kph-os-pessoas.vercel.app" },
@@ -9,6 +11,9 @@ const zones = [
 ];
 
 const nextConfig = {
+  // Raiz do monorepo — sem isso o Turbopack infere a raiz a partir de
+  // lockfiles fora do repo e quebra a resolução de módulos.
+  turbopack: { root: path.join(import.meta.dirname, "../..") },
   transpilePackages: ["@kph/db", "@kph/ui", "@kph/auth"],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
