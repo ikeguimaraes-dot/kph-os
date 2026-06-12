@@ -5,6 +5,8 @@ import "./globals.css";
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
+  // Fraunces é variable font: com `axes` definido, next/font exige weight
+  // "variable" (eixo wght completo) — array de pesos quebra o build.
   axes: ["SOFT", "WONK", "opsz"],
   weight: "variable",
   style: ["normal", "italic"],

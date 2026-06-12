@@ -2404,6 +2404,92 @@ export type Database = {
           created_at?: string;
         };
       };
+      // ── Analytics de adoção (migration 034) ─────────────────
+      page_views: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          path: string;
+          visited_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          path: string;
+          visited_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          path?: string;
+          visited_at?: string;
+        };
+      };
+      // ── Feedback de plataforma (migration 035) ───────────────
+      // Usamos (supabase as never) nas actions — consistente com page_views.
+      feedback: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          type: "bug" | "suggestion" | "other";
+          module: string;
+          description: string;
+          priority: "low" | "medium" | "high";
+          status: "open" | "triaged" | "resolved";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          type: "bug" | "suggestion" | "other";
+          module: string;
+          description: string;
+          priority?: "low" | "medium" | "high";
+          status?: "open" | "triaged" | "resolved";
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          type?: "bug" | "suggestion" | "other";
+          module?: string;
+          description?: string;
+          priority?: "low" | "medium" | "high";
+          status?: "open" | "triaged" | "resolved";
+          created_at?: string;
+        };
+      };
+      // ── Roadmap de sprints (migration 036) ───────────────────
+      // Usamos (supabase as never) nas actions.
+      roadmap_items: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          sprint: number;
+          status: "backlog" | "in_progress" | "done";
+          module: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          sprint: number;
+          status?: "backlog" | "in_progress" | "done";
+          module?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string | null;
+          sprint?: number;
+          status?: "backlog" | "in_progress" | "done";
+          module?: string | null;
+          created_at?: string;
+        };
+      };
       // ── Notificações in-app (migration 024) ──────────────────
       // Note: hos_jobs e hos_runs (migration 033) usam (supabase as any) nos
       // agentes do orquestrador — supabase-js v2 não infere corretamente tabelas
