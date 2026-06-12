@@ -18,7 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { HosJob, JobStatus, JobType } from "@/lib/inteligencia/orquestrador";
-import type { LMReport } from "@/lib/inteligencia/learning-machine";
+import type { LMReport } from "@kph/core/learning-machine";
 import { SEV_FG, COLORS } from "@/lib/tokens";
 
 // ── Job type config ────────────────────────────────────────────────

@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -15,37 +19,39 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@kph/db": ["./lib/kph/db/index.ts"],
-      "@kph/db/*": ["./lib/kph/db/*"],
-      "@kph/ui": ["./lib/kph/ui/index.ts"],
-      "@kph/ui/utils": ["./lib/kph/ui/utils.ts"],
-      "@kph/ui/avatar": ["./lib/kph/ui/ui/avatar.tsx"],
-      "@kph/ui/badge": ["./lib/kph/ui/ui/badge.tsx"],
-      "@kph/ui/button": ["./lib/kph/ui/ui/button.tsx"],
-      "@kph/ui/card": ["./lib/kph/ui/ui/card.tsx"],
-      "@kph/ui/command": ["./lib/kph/ui/ui/command.tsx"],
-      "@kph/ui/dialog": ["./lib/kph/ui/ui/dialog.tsx"],
-      "@kph/ui/dropdown-menu": ["./lib/kph/ui/ui/dropdown-menu.tsx"],
-      "@kph/ui/input": ["./lib/kph/ui/ui/input.tsx"],
-      "@kph/ui/input-group": ["./lib/kph/ui/ui/input-group.tsx"],
-      "@kph/ui/label": ["./lib/kph/ui/ui/label.tsx"],
-      "@kph/ui/select": ["./lib/kph/ui/ui/select.tsx"],
-      "@kph/ui/sheet": ["./lib/kph/ui/ui/sheet.tsx"],
-      "@kph/ui/sonner": ["./lib/kph/ui/ui/sonner.tsx"],
-      "@kph/ui/table": ["./lib/kph/ui/ui/table.tsx"],
-      "@kph/ui/tabs": ["./lib/kph/ui/ui/tabs.tsx"],
-      "@kph/ui/textarea": ["./lib/kph/ui/ui/textarea.tsx"],
-      "@kph/ui/tooltip": ["./lib/kph/ui/ui/tooltip.tsx"],
-      "@kph/ui/kpi-card": ["./lib/kph/ui/ui/kpi-card.tsx"],
-      "@kph/ui/progress-bar": ["./lib/kph/ui/ui/progress-bar.tsx"],
-      "@kph/auth": ["./lib/kph/auth/index.ts"],
-      "@kph/auth/context": ["./lib/kph/auth/context.tsx"],
-      "@kph/auth/server": ["./lib/kph/auth/server.ts"],
-      "@kph/auth/unit": ["./lib/kph/auth/unit.ts"],
-      "@kph/ui/sidebar": ["./lib/kph/ui/Sidebar.tsx"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@kph/core": [
+        "../../packages/core/src/index.ts"
+      ],
+      "@kph/core/*": [
+        "../../packages/core/src/*"
+      ],
+      "@kph/db": [
+        "../../packages/db/src/index.ts"
+      ],
+      "@kph/db/*": [
+        "../../packages/db/src/*"
+      ],
+      "@kph/ui": [
+        "../../packages/ui/src/index.ts"
+      ],
+      "@kph/ui/*": [
+        "../../packages/ui/src/*"
+      ],
+      "@kph/auth": [
+        "../../packages/auth/src/index.ts"
+      ],
+      "@kph/auth/*": [
+        "../../packages/auth/src/*"
+      ]
     }
   },
   "include": [
@@ -56,5 +62,7 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

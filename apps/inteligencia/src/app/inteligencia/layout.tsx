@@ -2,7 +2,7 @@ import { AuthProvider } from "@kph/auth/context";
 import { requireUser } from "@kph/auth/server";
 import { createSupabaseServerClient } from "@kph/db/supabase/server";
 import type { Unit } from "@kph/db/types/database";
-import { Sidebar } from "@kph/ui/sidebar";
+import { Sidebar } from "@/components/shell/KphSidebar";
 import { PageViewTracker } from "@/components/shell/PageViewTracker";
 import { SkipLink } from "@/components/shell/SkipLink";
 

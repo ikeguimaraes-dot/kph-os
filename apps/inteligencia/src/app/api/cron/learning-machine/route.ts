@@ -3,7 +3,7 @@
 // Configured in vercel.json.
 
 import { NextResponse } from "next/server";
-import { generateLearningMachineReport } from "@/lib/inteligencia/learning-machine";
+import { generateLearningMachineReport } from "@kph/core/learning-machine";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Anthropic call can take up to ~10s

@@ -1,6 +1,6 @@
 import { requireUser } from "@kph/auth/server";
 import { loadJobs } from "@/lib/inteligencia/orquestrador";
-import { loadLMReports } from "@/lib/inteligencia/learning-machine";
+import { loadLMReports } from "@kph/core/learning-machine";
 import { OrquestradorClient } from "./orquestrador-client";
 
 export const dynamic = "force-dynamic";
